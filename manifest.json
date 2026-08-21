@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "X Archive Cleaner",
-  "version": "1.2.0",
-  "description": "X cleaner with verified deletion, retries, and multi-pass Deep Clean rescanning.",
+  "version": "1.2.1",
+  "description": "X cleaner with verified deletion and dual-tab Posts + Replies scanning.",
   "permissions": [
     "storage",
     "tabs",

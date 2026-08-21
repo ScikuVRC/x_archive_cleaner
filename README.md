@@ -1,4 +1,4 @@
-# X Archive Cleaner v1.2 — Verified Deep Clean
+# X Archive Cleaner v1.2.1 — Dual Timeline Scanner
 
 This build adds a Direct Message cleaner to the existing post/reply cleaner.
 
@@ -84,3 +84,16 @@ Deep Clean finishes early if a rescan finds zero surviving posts.
 
 ## Important X limitation
 The live profile scan is not equivalent to the full account archive. X limits what is displayed in profile timelines, and timeline/indexing behavior can be inconsistent after mass deletion. For the most complete historical cleanup, import the X archive first, run its queue, then use Deep Clean as the final live-profile verification pass.
+
+
+## v1.2.1 Posts + Replies scanner fix
+The live scanner no longer assumes `/{username}/with_replies` contains the entire authored timeline.
+
+Each scan now:
+1. Opens the main `/{username}` profile route and scans the **Posts** tab.
+2. Persists those IDs in extension storage.
+3. Opens `/{username}/with_replies` and scans the **Replies** timeline.
+4. Merges and deduplicates both ID sets.
+5. Queues the merged result for deletion.
+
+Deep Clean performs both stages on every pass as well. This fixes cases where the previous scanner found replies but missed ordinary standalone posts.

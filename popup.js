@@ -45,7 +45,7 @@ async function refresh(){
   const s = await chrome.storage.local.get([
     "accountId","username",
     "queue","index","running","deleted","skipped","failed","lastError","sourceMode","scanActive","scanFound","scanStatus",
-    "deepCleanActive","deepCleanPass","deepCleanMaxPasses","verifyPending","verifyAttempts",
+    "deepCleanActive","deepCleanPass","deepCleanMaxPasses","verifyPending","verifyAttempts","scanStage","scanBuffer","scanPostsFound","scanRepliesFound",
     "dmQueue","dmIndex","dmRunning","dmDeleted","dmSkipped","dmFailed","dmLastError","dmScanActive","dmScanFound","dmScanStatus",
     "mainView"
   ]);
@@ -155,10 +155,11 @@ $("scanBtn").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
   if(!tab?.id) return;
   await chrome.storage.local.set({
-    sourceMode:"scan",scanActive:true,scanFound:0,scanStatus:"Opening Posts & Replies…",
+    sourceMode:"scan",scanActive:true,scanFound:0,scanStatus:"Opening Posts tab…",
+    scanStage:"posts",scanBuffer:[],scanPostsFound:0,scanRepliesFound:0,
     queue:[],index:0,running:false,deleted:0,skipped:0,failed:0,lastError:""
   });
-  await chrome.tabs.update(tab.id,{url:`https://x.com/${s.username}/with_replies`});
+  await chrome.tabs.update(tab.id,{url:`https://x.com/${s.username}`});
   window.close();
 });
 
@@ -239,7 +240,11 @@ $("sureBtn").addEventListener("click", async () => {
       deepCleanMaxPasses:3,
       scanActive:true,
       scanFound:0,
-      scanStatus:"Deep Clean pass 1/3 · scanning Posts & Replies…",
+      scanStage:"posts",
+      scanBuffer:[],
+      scanPostsFound:0,
+      scanRepliesFound:0,
+      scanStatus:"Deep Clean pass 1/3 · scanning Posts tab…",
       queue:[],
       index:0,
       running:false,
@@ -249,7 +254,7 @@ $("sureBtn").addEventListener("click", async () => {
       lastError:""
     });
     const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
-    if(tab?.id) await chrome.tabs.update(tab.id,{url:`https://x.com/${s.username}/with_replies`});
+    if(tab?.id) await chrome.tabs.update(tab.id,{url:`https://x.com/${s.username}`});
   }else if(pendingAction === "dm"){
     const s = await chrome.storage.local.get(["dmQueue","dmIndex"]);
     const href = s.dmQueue?.[s.dmIndex||0];
@@ -278,7 +283,7 @@ $("resetBtn").addEventListener("click", async () => {
   if(!confirm("Reset the post queue, scan state, and deletion progress?")) return;
   await chrome.storage.local.set({
     queue:[],index:0,running:false,deleted:0,skipped:0,failed:0,
-    scanActive:false,scanFound:0,scanStatus:"",
+    scanActive:false,scanFound:0,scanStatus:"",scanStage:"posts",scanBuffer:[],scanPostsFound:0,scanRepliesFound:0,
     deepCleanActive:false,deepCleanPass:0,verifyPending:false,verifyId:"",verifyAttempts:0,lastError:""
   });
   await refresh();

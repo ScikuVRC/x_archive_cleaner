@@ -39,7 +39,8 @@
     return chrome.storage.local.get([
       "accountId","username",
       "queue","index","running","deleted","skipped","failed","scanActive",
-      "scanFound","scanStatus","deepCleanActive","deepCleanPass","deepCleanMaxPasses",
+      "scanFound","scanStatus","scanStage","scanBuffer","scanPostsFound","scanRepliesFound",
+      "deepCleanActive","deepCleanPass","deepCleanMaxPasses",
       "verifyPending","verifyId","verifyAttempts",
       "dmQueue","dmIndex","dmRunning","dmDeleted","dmSkipped","dmFailed","dmScanActive"
     ]);
@@ -80,13 +81,23 @@
       return;
     }
 
-    const expected = `/${initial.username.toLowerCase()}/with_replies`;
-    if(!location.pathname.toLowerCase().startsWith(expected)){
-      location.replace(`https://x.com/${initial.username}/with_replies`);
+    const stage = initial.scanStage === "replies" ? "replies" : "posts";
+    const userPath = `/${initial.username.toLowerCase()}`;
+    const expectedPath = stage === "posts" ? userPath : `${userPath}/with_replies`;
+    const currentPath = location.pathname.toLowerCase().replace(/\/$/,"");
+
+    // Scan the main profile first, then the replies route. Treat them as two
+    // independent virtualized timelines and merge their IDs in storage.
+    if(currentPath !== expectedPath){
+      const target = stage === "posts"
+        ? `https://x.com/${initial.username}`
+        : `https://x.com/${initial.username}/with_replies`;
+      location.replace(target);
       return;
     }
 
-    const found = new Set();
+    const merged = new Set(Array.isArray(initial.scanBuffer) ? initial.scanBuffer : []);
+    const stageFound = new Set();
     let stagnant = 0;
     let previous = 0;
     const deep = !!initial.deepCleanActive;
@@ -94,12 +105,12 @@
     const maxPasses = initial.deepCleanMaxPasses || 3;
     const stagnantLimit = deep ? 22 : 14;
     const maxRounds = deep ? 520 : 380;
+    const stageLabel = stage === "posts" ? "Posts" : "Replies";
 
     await setState({
       scanStatus: deep
-        ? `Deep Clean pass ${pass}/${maxPasses} · scanning Posts & Replies…`
-        : "Scanning Posts & Replies…",
-      scanFound:0,
+        ? `Deep Clean pass ${pass}/${maxPasses} · scanning ${stageLabel} tab…`
+        : `Scanning ${stageLabel} tab…`,
       lastError:""
     });
 
@@ -107,35 +118,64 @@
       const live = await getState();
       if(!live.scanActive) return;
 
-      for(const id of collectOwnStatusIds(initial.username)) found.add(id);
+      for(const id of collectOwnStatusIds(initial.username)){
+        stageFound.add(id);
+        merged.add(id);
+      }
 
-      stagnant = found.size === previous ? stagnant + 1 : 0;
-      previous = found.size;
+      stagnant = stageFound.size === previous ? stagnant + 1 : 0;
+      previous = stageFound.size;
+
+      const postsFound = stage === "posts" ? stageFound.size : (initial.scanPostsFound || 0);
+      const repliesFound = stage === "replies" ? stageFound.size : (initial.scanRepliesFound || 0);
 
       await setState({
-        scanFound:found.size,
+        scanBuffer:[...merged],
+        scanFound:merged.size,
+        scanPostsFound:postsFound,
+        scanRepliesFound:repliesFound,
         scanStatus: deep
-          ? `Deep Clean pass ${pass}/${maxPasses} · scanning…\n${found.size} surviving post IDs found`
-          : `Scanning Posts & Replies…\n${found.size} unique post IDs found`
+          ? `Deep Clean pass ${pass}/${maxPasses} · ${stageLabel} tab\n${stageFound.size} on this tab · ${merged.size} unique total`
+          : `Scanning ${stageLabel} tab…\n${stageFound.size} on this tab · ${merged.size} unique total`
       });
 
       if(stagnant >= stagnantLimit) break;
 
-      // Scroll in two steps. This is slower than the normal scanner but gives
-      // X's virtualized timeline more opportunities to materialize posts.
-      window.scrollBy({top:Math.max(window.innerHeight * 0.9, 700),behavior:"smooth"});
+      window.scrollBy({top:Math.max(window.innerHeight * 0.9,700),behavior:"smooth"});
       await sleep(deep ? 700 : 450);
       window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"});
       await sleep(deep ? 850 : 650);
     }
 
+    // Posts pass complete: persist results and move to Replies.
+    if(stage === "posts"){
+      await setState({
+        scanStage:"replies",
+        scanBuffer:[...merged],
+        scanFound:merged.size,
+        scanPostsFound:stageFound.size,
+        scanStatus: deep
+          ? `Deep Clean pass ${pass}/${maxPasses} · Posts complete (${stageFound.size}) · opening Replies…`
+          : `Posts scan complete (${stageFound.size}) · opening Replies…`
+      });
+      await sleep(500);
+      location.replace(`https://x.com/${initial.username}/with_replies`);
+      return;
+    }
+
+    // Replies pass complete: finalize the merged queue.
+    const finalIds = [...merged];
+    const postsCount = initial.scanPostsFound || 0;
+    const repliesCount = stageFound.size;
+
     if(deep){
-      if(found.size === 0){
+      if(finalIds.length === 0){
         await setState({
           queue:[],index:0,scanActive:false,running:false,
+          scanStage:"posts",scanBuffer:[],scanPostsFound:0,scanRepliesFound:0,
           deepCleanActive:false,verifyPending:false,verifyId:"",verifyAttempts:0,
           scanFound:0,
-          scanStatus:`Deep Clean complete · no surviving posts found after pass ${pass}`,
+          scanStatus:`Deep Clean complete · no surviving posts/replies found after pass ${pass}`,
           lastError:"Deep Clean completed successfully."
         });
         await sleep(500);
@@ -144,22 +184,25 @@
       }
 
       await setState({
-        queue:[...found],index:0,scanActive:false,running:true,
-        scanFound:found.size,
-        scanStatus:`Deep Clean pass ${pass}/${maxPasses} · ${found.size} survivors queued`,
+        queue:finalIds,index:0,scanActive:false,running:true,
+        scanStage:"posts",scanBuffer:[],scanFound:finalIds.length,
+        scanPostsFound:postsCount,scanRepliesFound:repliesCount,
+        scanStatus:`Deep Clean pass ${pass}/${maxPasses} · ${finalIds.length} unique survivors queued (${postsCount} Posts / ${repliesCount} Replies before dedupe)`,
         verifyPending:false,verifyId:"",verifyAttempts:0,
         lastError:""
       });
       await sleep(600);
-      location.replace(`https://x.com/${initial.username}/status/${[...found][0]}`);
+      location.replace(`https://x.com/${initial.username}/status/${finalIds[0]}`);
       return;
     }
 
     await setState({
-      queue:[...found],index:0,scanActive:false,scanFound:found.size,
-      scanStatus:`Scan complete · ${found.size} unique post IDs queued`,
+      queue:finalIds,index:0,scanActive:false,scanFound:finalIds.length,
+      scanStage:"posts",scanBuffer:[],
+      scanPostsFound:postsCount,scanRepliesFound:repliesCount,
+      scanStatus:`Scan complete · ${finalIds.length} unique IDs queued\nPosts tab: ${postsCount} · Replies tab: ${repliesCount}`,
       running:false,deleted:0,skipped:0,failed:0,
-      lastError:found.size ? "" : "No posts were found in the currently exposed Posts & Replies timeline."
+      lastError:finalIds.length ? "" : "No posts or replies were found in the currently exposed profile timelines."
     });
   }
 
@@ -305,13 +348,17 @@
             deepCleanActive:true,
             deepCleanPass:nextPass,
             scanFound:0,
-            scanStatus:`Deep Clean pass ${nextPass}/${maxPasses} · rescanning for survivors…`,
+            scanStage:"posts",
+            scanBuffer:[],
+            scanPostsFound:0,
+            scanRepliesFound:0,
+            scanStatus:`Deep Clean pass ${nextPass}/${maxPasses} · rescanning Posts tab…`,
             queue:[],
             index:0,
             lastError:error
           });
           await sleep(650);
-          location.replace(`https://x.com/${state.username}/with_replies`);
+          location.replace(`https://x.com/${state.username}`);
           return;
         }
 
