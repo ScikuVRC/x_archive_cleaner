@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "X Archive Cleaner",
+  "version": "1.0.0",
+  "description": "Delete your own X posts/replies from an imported X archive, one post at a time.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "X Archive Cleaner"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
