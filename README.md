@@ -1,42 +1,86 @@
-# X Archive Cleaner
+# X Archive Cleaner v1.2 — Verified Deep Clean
 
-A local Chrome Manifest V3 extension that deletes your own X posts one-by-one using the normal X web UI.
+This build adds a Direct Message cleaner to the existing post/reply cleaner.
 
-## Why archive-driven?
-X profile timelines do not expose unlimited history. Importing your X archive lets the extension work from your archived post IDs instead of relying on endless profile scrolling.
+## Posts Cleaner
+Two sources are available:
+- **Archive**: import X archive `.js` / `.json` post files.
+- **Scan Account**: scan your live Posts & Replies timeline for post IDs X currently exposes.
 
-## Install
-1. Unzip this folder.
-2. Open `chrome://extensions`.
-3. Enable **Developer mode**.
-4. Click **Load unpacked**.
-5. Select the `x_archive_cleaner` folder.
+Deletion still uses X's visible web interface rather than a hard-coded private DeleteTweet GraphQL endpoint.
 
-## Get your X archive
-On X:
-Settings and privacy → Your account → Download an archive of your data.
+## DM Cleaner
+1. Open X and press **Get Account**.
+2. Open the **DM Cleaner** tab.
+3. Press **Scan DM Inbox**.
+4. The extension opens `x.com/messages`, scrolls the inbox, and queues unique conversation URLs.
+5. Re-open the extension and review the count.
+6. Press **Remove Queued Conversations**.
+7. Confirm with **I'm sure**.
 
-When the archive arrives, unzip it and locate the JavaScript/JSON file(s) containing your posts, commonly under a `data` folder with a name such as `tweets.js`.
+The cleaner then opens each queued conversation, opens Conversation Info, looks for **Delete conversation** or **Leave conversation**, confirms the action, and continues.
 
-## Use
-1. Log into X in Chrome.
-2. Open the extension.
-3. Enter your CURRENT X username.
-4. Select the archive post file(s).
-5. Click **Import archive**.
-6. Leave **Dry run** enabled first and click **Start / Resume**.
-7. Let it verify some or all IDs.
-8. To actually delete, turn Dry run off, reset/re-import if needed, then start again.
+### Important DM behavior
+Removing a Direct Message or conversation from X removes it from your account only. Other participants may still be able to see their copies. Removing a group conversation can also cause you to leave that group.
 
 ## Safety
-- It verifies that the rendered post belongs to the username you entered before deleting.
-- It only uses X's own visible delete controls.
-- It stores the queue/progress locally in chrome.storage.local.
-- Pause at any time from the popup.
+- The logged-in numeric X account ID is automatically detected.
+- The account ID is checked again before scanning and destructive actions.
+- Post deletion and DM removal have separate queues and separate confirmation flows.
+- Progress is stored locally in `chrome.storage.local`.
+- Both cleaners can be paused/reset separately.
+
+## Install / update
+1. Unzip the package.
+2. Go to `chrome://extensions`.
+3. Enable Developer mode.
+4. Remove/reload the old unpacked extension.
+5. Choose **Load unpacked** and select the `x_archive_cleaner_v1_1_dm` folder.
+6. Open x.com while logged into the correct account.
+7. Press **Get Account** before using either cleaner.
 
 ## Limitations
-- X can rate-limit or alter its DOM; the extension may need selector updates.
-- Reposts may be skipped because their action is usually "Undo repost", not "Delete".
-- Already-deleted/unavailable posts are skipped.
-- If your X UI is not English or French, add your localized "Delete" menu wording in `findDeleteMenuItem()` in `content.js`.
-- Keep the active X tab open while it runs.
+- X may change its web UI, selectors, or wording at any time.
+- DM scanning discovers conversations currently exposed through the web inbox.
+- Message Requests may not appear in the normal inbox scan.
+- DM removal uses visible Delete/Leave Conversation controls and does not promise to erase recipients' copies.
+- Keep the X tab open while scanning or deleting.
+
+
+## v1.1.1 stability hotfix
+- Clears the active job flag before leaving the last deleted post/conversation.
+- After post cleanup, returns to `https://x.com/home`.
+- After DM cleanup, returns to `https://x.com/messages` instead of remaining on a deleted conversation URL.
+- Detects stale completed queues on page load and refuses to resume them.
+- Adds **Stop All Automation** to immediately clear post scanning, post deletion, DM scanning, and DM deletion flags.
+- Re-checks the running flag after each inter-item delay so Pause/Stop All takes effect before another navigation.
+- Slows navigation slightly and adds periodic cooldowns during large cleanups.
+
+
+## v1.2 Verified Deletion
+A Delete click is no longer treated as success by itself.
+
+For every queued post the cleaner now:
+1. Opens the exact status URL.
+2. Uses X's visible Delete → Confirm flow.
+3. Stores a verification checkpoint.
+4. Reloads that exact status URL.
+5. Checks whether the post authored by the detected username still renders.
+6. If it still exists, retries deletion.
+7. Only increments **Deleted** after the post is confirmed absent.
+8. Gives up after 3 verified attempts and records the post as failed instead of falsely reporting success.
+
+## Deep Clean
+The **Deep Clean · Rescan + Verify** button runs up to 3 passes.
+
+Each pass:
+- Performs a slower, deeper Posts & Replies scan.
+- Uses all visible `/status/` links for the detected username instead of relying only on one tweet-article wrapper.
+- Queues surviving posts.
+- Deletes each survivor with verification and up to 3 attempts.
+- Rescans the timeline after the queue is processed so posts newly exposed by X's virtualized/truncated timeline can be caught.
+
+Deep Clean finishes early if a rescan finds zero surviving posts.
+
+## Important X limitation
+The live profile scan is not equivalent to the full account archive. X limits what is displayed in profile timelines, and timeline/indexing behavior can be inconsistent after mass deletion. For the most complete historical cleanup, import the X archive first, run its queue, then use Deep Clean as the final live-profile verification pass.
