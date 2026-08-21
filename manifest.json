@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "X Archive Cleaner",
-  "version": "1.2.1",
-  "description": "X cleaner with verified deletion and dual-tab Posts + Replies scanning.",
+  "version": "1.3.0",
+  "description": "Delete your own X posts and replies from an archive or live profile scan, with verified deletion and Deep Clean.",
   "permissions": [
     "storage",
     "tabs",

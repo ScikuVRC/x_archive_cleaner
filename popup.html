@@ -9,7 +9,7 @@
   color-scheme:dark;
   --bg:#07101d;--bg2:#0a1526;--panel:#0e1b2e;--line:#213752;
   --text:#f5f8fc;--muted:#8ea2bb;--blue:#1397ff;--blue2:#4dc4ff;
-  --red:#ff4e5f;--green:#2cd480;--purple:#9a75ff
+  --red:#ff4e5f
 }
 *{box-sizing:border-box}
 body{
@@ -25,10 +25,6 @@ body{
 .title{font-size:20px;font-weight:800;letter-spacing:-.02em}
 .subtitle{color:var(--muted);font-size:12px;margin-top:2px}
 .badge{margin-left:auto;padding:4px 8px;border-radius:999px;background:#0c3152;color:#72c8ff;font-size:10px;font-weight:800}
-.nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
-.nav button{background:#0b1828;color:#9fb2c8;border:1px solid #203a58}
-.nav button.active{background:#0d3152;color:#fff;border-color:#168ce9}
-.view{display:none}.view.active{display:block}
 .card{background:rgba(13,26,44,.92);border:1px solid var(--line);border-radius:16px;padding:14px;margin:11px 0}
 .card-title{font-weight:750;margin-bottom:9px}
 .muted{color:var(--muted);font-size:11px}
@@ -41,7 +37,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .primary{color:#fff;background:linear-gradient(135deg,var(--blue),#0878eb)}
 .secondary{color:#dceafa;background:#13243a;border:1px solid #2a4464}
 .danger{color:#fff;background:linear-gradient(135deg,#ff5363,#d92740)}
-.dm-primary{color:#fff;background:linear-gradient(135deg,#8a63ff,#6550da)}
 .full{width:100%}
 .source-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px}
 .source-tab{background:#0a1727;color:#9db1c8;border:1px solid #203a58}
@@ -51,14 +46,12 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .file-box input{width:100%;margin-top:8px}
 .row{display:flex;gap:8px}.grow{flex:1}
 .note{background:#091626;border:1px solid #1c3652;border-radius:11px;padding:10px;color:#9cb0c6}
-.dm-note{background:#151128;border-color:#3b3166;color:#bcb0df}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
 .stat{background:#091626;border:1px solid #1b3450;border-radius:11px;padding:9px}
 .stat b{display:block;font-size:15px}.stat span{display:block;color:var(--muted);font-size:10px;margin-top:1px}
 .progress{height:7px;background:#07131f;border-radius:999px;overflow:hidden;margin:10px 0 7px}
 .bar{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--blue2))}
-.dm-bar{background:linear-gradient(90deg,#8d67ff,#bf8cff)}
-.status{color:var(--muted);font-size:11px;white-space:pre-wrap;max-height:72px;overflow:hidden}
+.status{color:var(--muted);font-size:11px;white-space:pre-wrap;max-height:82px;overflow:hidden}
 .warn{border-color:#63323d;background:linear-gradient(145deg,rgba(75,22,33,.40),rgba(30,20,29,.78))}
 .warn-title{font-weight:800;color:#ff7582;margin-bottom:5px}
 .warn-copy{color:#d3b8bd;font-size:11px;margin-bottom:10px}
@@ -77,13 +70,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <img class="logo" src="icon128.png" alt="">
     <div>
       <div class="title">Archive Cleaner</div>
-      <div class="subtitle">Posts, replies & Direct Messages</div>
+      <div class="subtitle">Posts & replies cleaner</div>
     </div>
-    <div class="badge">v1.2.1</div>
+    <div class="badge">v1.3</div>
   </div>
 
   <section class="card">
-    <div class="card-title">Account</div>
+    <div class="card-title">1. Detect account</div>
     <div class="account">
       <div class="account-box">
         <div id="accountName" class="account-main">No account detected</div>
@@ -97,97 +90,58 @@ button:disabled{opacity:.45;cursor:not-allowed}
     Stop All Automation
   </button>
 
-  <div class="nav">
-    <button id="postsNav" class="active">Posts Cleaner</button>
-    <button id="dmNav">DM Cleaner</button>
-  </div>
+  <section class="card">
+    <div class="card-title">2. Choose source</div>
+    <div class="source-tabs">
+      <button id="archiveTab" class="source-tab active">Archive</button>
+      <button id="scanTab" class="source-tab">Scan Account</button>
+    </div>
 
-  <div id="postsView" class="view active">
-    <section class="card">
-      <div class="card-title">Choose post source</div>
-      <div class="source-tabs">
-        <button id="archiveTab" class="source-tab active">Archive</button>
-        <button id="scanTab" class="source-tab">Scan Account</button>
-      </div>
-
-      <div id="archivePane" class="pane active">
-        <label class="file-box">Select archive post file(s)
-          <input id="archiveFiles" type="file" multiple accept=".js,.json,text/javascript,application/json">
-        </label>
-        <button id="importBtn" class="secondary full" style="margin-top:8px">Import Archive</button>
-      </div>
-
-      <div id="scanPane" class="pane">
-        <div class="note">
-          Scans both your <b>Posts</b> tab and <b>Replies</b> tab, then merges the IDs into one queue.
-          Archive mode remains more complete for older history.
-        </div>
-        <button id="scanBtn" class="primary full" style="margin-top:8px">Scan Posts + Replies</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-title">Post queue</div>
-      <div class="stats">
-        <div class="stat"><b id="queued">0</b><span>queued</span></div>
-        <div class="stat"><b id="processed">0</b><span>processed</span></div>
-        <div class="stat"><b id="deleted">0</b><span>deleted</span></div>
-      </div>
-      <div class="progress"><div id="bar" class="bar"></div></div>
-      <div id="status" class="status">Nothing loaded yet.</div>
-      <div class="row" style="margin-top:9px">
-        <button id="pauseBtn" class="secondary grow">Pause</button>
-        <button id="resetBtn" class="secondary">Reset</button>
-      </div>
-    </section>
-
-    <section class="card warn">
-      <div class="warn-title">Permanent post deletion</div>
-      <div class="warn-copy">Queued posts are permanently deleted from X and cannot be restored.</div>
-      <button id="startBtn" class="danger full">Delete Queued Posts</button>
-      <button id="deepCleanBtn" class="secondary full" style="margin-top:8px;border-color:#6d3b48;color:#ff9ca6">
-        Deep Clean · Rescan + Verify
-      </button>
+    <div id="archivePane" class="pane active">
+      <label class="file-box">Select archive post file(s)
+        <input id="archiveFiles" type="file" multiple accept=".js,.json,text/javascript,application/json">
+      </label>
+      <button id="importBtn" class="secondary full" style="margin-top:8px">Import Archive</button>
       <div class="muted" style="margin-top:7px">
-        Deep Clean scans both Posts and Replies on every pass and retries survivors for up to 3 passes.
+        Supports normal post/reply archive files and common Community-post wrappers.
       </div>
-    </section>
-  </div>
+    </div>
 
-  <div id="dmView" class="view">
-    <section class="card">
-      <div class="card-title">Direct Message cleaner</div>
-      <div class="note dm-note">
-        This scans your X inbox for conversations, then removes those conversations from <b>your account</b>.
-        Other participants can still retain and view their copies of the messages.
+    <div id="scanPane" class="pane">
+      <div class="note">
+        Scans both your <b>Posts</b> and <b>Replies</b> timelines and merges the discovered IDs.
+        Archive mode remains more complete for older history.
       </div>
-      <button id="dmScanBtn" class="dm-primary full" style="margin-top:9px">Scan DM Inbox</button>
-    </section>
+      <button id="scanBtn" class="primary full" style="margin-top:8px">Scan Posts + Replies</button>
+    </div>
+  </section>
 
-    <section class="card">
-      <div class="card-title">DM queue</div>
-      <div class="stats">
-        <div class="stat"><b id="dmQueued">0</b><span>conversations</span></div>
-        <div class="stat"><b id="dmProcessed">0</b><span>processed</span></div>
-        <div class="stat"><b id="dmDeleted">0</b><span>removed</span></div>
-      </div>
-      <div class="progress"><div id="dmBar" class="bar dm-bar"></div></div>
-      <div id="dmStatus" class="status">Inbox has not been scanned.</div>
-      <div class="row" style="margin-top:9px">
-        <button id="dmPauseBtn" class="secondary grow">Pause</button>
-        <button id="dmResetBtn" class="secondary">Reset</button>
-      </div>
-    </section>
+  <section class="card">
+    <div class="card-title">3. Queue</div>
+    <div class="stats">
+      <div class="stat"><b id="queued">0</b><span>queued</span></div>
+      <div class="stat"><b id="processed">0</b><span>processed</span></div>
+      <div class="stat"><b id="deleted">0</b><span>verified deleted</span></div>
+    </div>
+    <div class="progress"><div id="bar" class="bar"></div></div>
+    <div id="status" class="status">Nothing loaded yet.</div>
+    <div class="row" style="margin-top:9px">
+      <button id="pauseBtn" class="secondary grow">Pause</button>
+      <button id="resetBtn" class="secondary">Reset</button>
+    </div>
+  </section>
 
-    <section class="card warn">
-      <div class="warn-title">Remove DM conversations</div>
-      <div class="warn-copy">
-        This removes queued conversations from your account. Group conversations may be left as part of removal.
-        It does not erase copies already visible to other participants.
-      </div>
-      <button id="dmDeleteBtn" class="danger full">Remove Queued Conversations</button>
-    </section>
-  </div>
+  <section class="card warn">
+    <div class="warn-title">Permanent post deletion</div>
+    <div class="warn-copy">Queued posts are permanently deleted from X and cannot be restored.</div>
+    <button id="startBtn" class="danger full">Delete Queued Posts</button>
+    <button id="deepCleanBtn" class="secondary full" style="margin-top:8px;border-color:#6d3b48;color:#ff9ca6">
+      Deep Clean · Rescan + Verify
+    </button>
+    <div class="muted" style="margin-top:7px">
+      Deep Clean rescans both Posts and Replies, retries survivors, and verifies each deletion.
+    </div>
+  </section>
 
   <div class="footer">Runs locally in Chrome · account verified before destructive actions</div>
 </div>
@@ -197,7 +151,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <h2 id="confirmTitle">Final confirmation</h2>
     <p id="confirmCopy"></p>
     <div id="confirmCount" class="count-danger">0</div>
-    <p id="confirmFoot">This action cannot be undone from this cleaner.</p>
+    <p id="confirmFoot"></p>
     <button id="sureBtn" class="danger full">I'm sure</button>
     <button id="cancelBtn" class="secondary full" style="margin-top:8px">Cancel</button>
   </div>

@@ -1,6 +1,6 @@
 (() => {
-  if(window.__xArchiveCleanerV11) return;
-  window.__xArchiveCleanerV11 = true;
+  if(window.__xArchiveCleanerPostsOnly) return;
+  window.__xArchiveCleanerPostsOnly = true;
 
   const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 
@@ -12,8 +12,10 @@
   function accountIdFromSession(){
     const raw = readCookie("twid");
     if(!raw) return null;
+
     let value = raw;
     try{ value = decodeURIComponent(raw); }catch{}
+
     const match = value.match(/u=(\d+)/) || value.match(/(\d{5,})/);
     return match?.[1] || null;
   }
@@ -22,95 +24,122 @@
     const profile = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
     const href = profile?.getAttribute("href") || "";
     const match = href.match(/^\/([^/?#]+)$/);
-    if(match && !["home","explore","notifications","messages","i"].includes(match[1].toLowerCase())){
+
+    if(
+      match &&
+      !["home","explore","notifications","messages","i"].includes(match[1].toLowerCase())
+    ){
       return match[1];
     }
+
     return null;
   }
 
   chrome.runtime.onMessage.addListener((message,sender,sendResponse) => {
     if(message?.cmd !== "detect-account") return;
+
     const accountId = accountIdFromSession();
     const username = usernameFromProfileLink();
-    sendResponse(accountId ? {accountId,username} : {error:"No logged-in X session detected"});
+
+    sendResponse(
+      accountId
+        ? {accountId,username}
+        : {error:"No logged-in X session detected"}
+    );
   });
 
   async function getState(){
     return chrome.storage.local.get([
       "accountId","username",
-      "queue","index","running","deleted","skipped","failed","scanActive",
-      "scanFound","scanStatus","scanStage","scanBuffer","scanPostsFound","scanRepliesFound",
+      "queue","index","running","deleted","skipped","failed",
+      "scanActive","scanFound","scanStatus","scanPhase","scanCollected",
       "deepCleanActive","deepCleanPass","deepCleanMaxPasses",
-      "verifyPending","verifyId","verifyAttempts",
-      "dmQueue","dmIndex","dmRunning","dmDeleted","dmSkipped","dmFailed","dmScanActive"
+      "verifyPending","verifyId","verifyAttempts"
     ]);
   }
 
-  async function setState(patch){ await chrome.storage.local.set(patch); }
+  async function setState(patch){
+    await chrome.storage.local.set(patch);
+  }
 
   function accountMatches(expectedId){
     const live = accountIdFromSession();
     return !!live && live === expectedId;
   }
 
-  // ---------- post scanner ----------
   function collectOwnStatusIds(username){
     const ids = new Set();
     const wanted = username.toLowerCase();
 
-    // Search every visible status link, not only links nested under the tweet
-    // article selector. X sometimes changes or virtualizes article wrappers.
     for(const a of document.querySelectorAll('a[href*="/status/"]')){
       const href = a.getAttribute("href") || "";
       const m = href.match(/^\/([^/]+)\/status\/(\d+)/);
-      if(m && m[1].toLowerCase() === wanted) ids.add(m[2]);
+
+      if(m && m[1].toLowerCase() === wanted){
+        ids.add(m[2]);
+      }
     }
+
     return ids;
+  }
+
+  function expectedScanPath(username,phase){
+    return phase === "replies"
+      ? `/${username.toLowerCase()}/with_replies`
+      : `/${username.toLowerCase()}`;
+  }
+
+  function phaseUrl(username,phase){
+    return phase === "replies"
+      ? `https://x.com/${username}/with_replies`
+      : `https://x.com/${username}`;
   }
 
   async function runPostScanner(){
     const initial = await getState();
+
     if(!initial.scanActive || !initial.accountId || !initial.username) return;
 
     if(!accountMatches(initial.accountId)){
       await setState({
-        scanActive:false,deepCleanActive:false,
+        scanActive:false,
+        deepCleanActive:false,
         scanStatus:"Scan stopped",
         lastError:"Safety stop: logged-in X account could not be verified."
       });
       return;
     }
 
-    const stage = initial.scanStage === "replies" ? "replies" : "posts";
-    const userPath = `/${initial.username.toLowerCase()}`;
-    const expectedPath = stage === "posts" ? userPath : `${userPath}/with_replies`;
-    const currentPath = location.pathname.toLowerCase().replace(/\/$/,"");
+    const phase = initial.scanPhase || "posts";
+    const expected = expectedScanPath(initial.username,phase);
+    const path = location.pathname.toLowerCase();
 
-    // Scan the main profile first, then the replies route. Treat them as two
-    // independent virtualized timelines and merge their IDs in storage.
-    if(currentPath !== expectedPath){
-      const target = stage === "posts"
-        ? `https://x.com/${initial.username}`
-        : `https://x.com/${initial.username}/with_replies`;
-      location.replace(target);
+    const pathOkay = phase === "posts"
+      ? path === expected || path === `${expected}/`
+      : path.startsWith(expected);
+
+    if(!pathOkay){
+      location.replace(phaseUrl(initial.username,phase));
       return;
     }
 
-    const merged = new Set(Array.isArray(initial.scanBuffer) ? initial.scanBuffer : []);
-    const stageFound = new Set();
+    const collected = new Set(initial.scanCollected || []);
+    const phaseFound = new Set();
+
     let stagnant = 0;
     let previous = 0;
+
     const deep = !!initial.deepCleanActive;
     const pass = initial.deepCleanPass || 1;
     const maxPasses = initial.deepCleanMaxPasses || 3;
     const stagnantLimit = deep ? 22 : 14;
     const maxRounds = deep ? 520 : 380;
-    const stageLabel = stage === "posts" ? "Posts" : "Replies";
 
     await setState({
       scanStatus: deep
-        ? `Deep Clean pass ${pass}/${maxPasses} · scanning ${stageLabel} tab…`
-        : `Scanning ${stageLabel} tab…`,
+        ? `Deep Clean pass ${pass}/${maxPasses} · scanning ${phase === "posts" ? "Posts" : "Replies"}…`
+        : `Scanning ${phase === "posts" ? "Posts" : "Replies"}…`,
+      scanFound:collected.size,
       lastError:""
     });
 
@@ -119,177 +148,125 @@
       if(!live.scanActive) return;
 
       for(const id of collectOwnStatusIds(initial.username)){
-        stageFound.add(id);
-        merged.add(id);
+        phaseFound.add(id);
+        collected.add(id);
       }
 
-      stagnant = stageFound.size === previous ? stagnant + 1 : 0;
-      previous = stageFound.size;
-
-      const postsFound = stage === "posts" ? stageFound.size : (initial.scanPostsFound || 0);
-      const repliesFound = stage === "replies" ? stageFound.size : (initial.scanRepliesFound || 0);
+      stagnant = phaseFound.size === previous ? stagnant + 1 : 0;
+      previous = phaseFound.size;
 
       await setState({
-        scanBuffer:[...merged],
-        scanFound:merged.size,
-        scanPostsFound:postsFound,
-        scanRepliesFound:repliesFound,
+        scanCollected:[...collected],
+        scanFound:collected.size,
         scanStatus: deep
-          ? `Deep Clean pass ${pass}/${maxPasses} · ${stageLabel} tab\n${stageFound.size} on this tab · ${merged.size} unique total`
-          : `Scanning ${stageLabel} tab…\n${stageFound.size} on this tab · ${merged.size} unique total`
+          ? `Deep Clean pass ${pass}/${maxPasses} · ${phase === "posts" ? "Posts" : "Replies"}\n${phaseFound.size} this tab · ${collected.size} unique total`
+          : `${phase === "posts" ? "Posts" : "Replies"} scan\n${phaseFound.size} this tab · ${collected.size} unique total`
       });
 
       if(stagnant >= stagnantLimit) break;
 
-      window.scrollBy({top:Math.max(window.innerHeight * 0.9,700),behavior:"smooth"});
+      window.scrollBy({
+        top:Math.max(window.innerHeight * 0.9,700),
+        behavior:"smooth"
+      });
+
       await sleep(deep ? 700 : 450);
-      window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"});
+
+      window.scrollTo({
+        top:document.documentElement.scrollHeight,
+        behavior:"smooth"
+      });
+
       await sleep(deep ? 850 : 650);
     }
 
-    // Posts pass complete: persist results and move to Replies.
-    if(stage === "posts"){
+    if(phase === "posts"){
       await setState({
-        scanStage:"replies",
-        scanBuffer:[...merged],
-        scanFound:merged.size,
-        scanPostsFound:stageFound.size,
+        scanPhase:"replies",
+        scanCollected:[...collected],
+        scanFound:collected.size,
         scanStatus: deep
-          ? `Deep Clean pass ${pass}/${maxPasses} · Posts complete (${stageFound.size}) · opening Replies…`
-          : `Posts scan complete (${stageFound.size}) · opening Replies…`
+          ? `Deep Clean pass ${pass}/${maxPasses} · opening Replies…`
+          : `Posts complete · opening Replies…`
       });
+
       await sleep(500);
-      location.replace(`https://x.com/${initial.username}/with_replies`);
+      location.replace(phaseUrl(initial.username,"replies"));
       return;
     }
 
-    // Replies pass complete: finalize the merged queue.
-    const finalIds = [...merged];
-    const postsCount = initial.scanPostsFound || 0;
-    const repliesCount = stageFound.size;
+    const queue = [...collected];
 
     if(deep){
-      if(finalIds.length === 0){
+      if(queue.length === 0){
         await setState({
-          queue:[],index:0,scanActive:false,running:false,
-          scanStage:"posts",scanBuffer:[],scanPostsFound:0,scanRepliesFound:0,
-          deepCleanActive:false,verifyPending:false,verifyId:"",verifyAttempts:0,
+          queue:[],
+          index:0,
+          scanActive:false,
+          running:false,
+          deepCleanActive:false,
+          scanPhase:"",
+          scanCollected:[],
+          verifyPending:false,
+          verifyId:"",
+          verifyAttempts:0,
           scanFound:0,
-          scanStatus:`Deep Clean complete · no surviving posts/replies found after pass ${pass}`,
+          scanStatus:`Deep Clean complete · no surviving posts found after pass ${pass}`,
           lastError:"Deep Clean completed successfully."
         });
+
         await sleep(500);
         location.replace("https://x.com/home");
         return;
       }
 
       await setState({
-        queue:finalIds,index:0,scanActive:false,running:true,
-        scanStage:"posts",scanBuffer:[],scanFound:finalIds.length,
-        scanPostsFound:postsCount,scanRepliesFound:repliesCount,
-        scanStatus:`Deep Clean pass ${pass}/${maxPasses} · ${finalIds.length} unique survivors queued (${postsCount} Posts / ${repliesCount} Replies before dedupe)`,
-        verifyPending:false,verifyId:"",verifyAttempts:0,
+        queue,
+        index:0,
+        scanActive:false,
+        scanPhase:"",
+        scanCollected:[],
+        running:true,
+        scanFound:queue.length,
+        scanStatus:`Deep Clean pass ${pass}/${maxPasses} · ${queue.length} survivors queued`,
+        verifyPending:false,
+        verifyId:"",
+        verifyAttempts:0,
         lastError:""
       });
+
       await sleep(600);
-      location.replace(`https://x.com/${initial.username}/status/${finalIds[0]}`);
+      location.replace(`https://x.com/${initial.username}/status/${queue[0]}`);
       return;
     }
 
     await setState({
-      queue:finalIds,index:0,scanActive:false,scanFound:finalIds.length,
-      scanStage:"posts",scanBuffer:[],
-      scanPostsFound:postsCount,scanRepliesFound:repliesCount,
-      scanStatus:`Scan complete · ${finalIds.length} unique IDs queued\nPosts tab: ${postsCount} · Replies tab: ${repliesCount}`,
-      running:false,deleted:0,skipped:0,failed:0,
-      lastError:finalIds.length ? "" : "No posts or replies were found in the currently exposed profile timelines."
+      queue,
+      index:0,
+      scanActive:false,
+      scanPhase:"",
+      scanCollected:[],
+      scanFound:queue.length,
+      scanStatus:`Scan complete · ${queue.length} unique Posts + Replies IDs queued`,
+      running:false,
+      deleted:0,
+      skipped:0,
+      failed:0,
+      lastError:queue.length
+        ? ""
+        : "No posts or replies were found in the currently exposed profile timelines."
     });
   }
 
-  // ---------- DM scanner ----------
-  function normalizeConversationHref(href){
-    if(!href) return null;
-    const clean = href.split("?")[0].split("#")[0];
-    if(clean === "/messages" || clean === "/messages/compose" || clean.startsWith("/messages/settings")) return null;
-    const m = clean.match(/^\/messages\/([A-Za-z0-9_-]{4,})$/);
-    return m ? `/messages/${m[1]}` : null;
-  }
-
-  function collectConversationHrefs(){
-    const found = new Set();
-    for(const a of document.querySelectorAll('a[href^="/messages/"]')){
-      const href = normalizeConversationHref(a.getAttribute("href"));
-      if(href) found.add(href);
-    }
-    return found;
-  }
-
-  function bestScrollableInbox(){
-    const candidates = [...document.querySelectorAll("div")].filter(el => {
-      const style = getComputedStyle(el);
-      return /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 80 && el.clientHeight > 200;
-    });
-    candidates.sort((a,b) => (b.scrollHeight-b.clientHeight) - (a.scrollHeight-a.clientHeight));
-    return candidates[0] || document.scrollingElement;
-  }
-
-  async function runDmScanner(){
-    const initial = await getState();
-    if(!initial.dmScanActive || !initial.accountId) return;
-    if(!accountMatches(initial.accountId)){
-      await setState({dmScanActive:false,dmScanStatus:"DM scan stopped",dmLastError:"Safety stop: logged-in X account could not be verified."});
-      return;
-    }
-
-    if(!location.pathname.startsWith("/messages")){
-      location.href = "https://x.com/messages";
-      return;
-    }
-
-    const found = new Set();
-    let stagnant = 0, previous = 0;
-    await sleep(1200);
-    await setState({dmScanStatus:"Scanning DM inbox…",dmScanFound:0,dmLastError:""});
-
-    for(let round=0; round<260; round++){
-      const live = await getState();
-      if(!live.dmScanActive) return;
-
-      for(const href of collectConversationHrefs()) found.add(href);
-      stagnant = found.size === previous ? stagnant + 1 : 0;
-      previous = found.size;
-
-      await setState({
-        dmScanFound:found.size,
-        dmScanStatus:`Scanning DM inbox…\n${found.size} unique conversations found`
-      });
-      if(stagnant >= 14) break;
-
-      const scroller = bestScrollableInbox();
-      if(scroller === document.scrollingElement){
-        window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"});
-      }else{
-        scroller.scrollTo({top:scroller.scrollHeight,behavior:"smooth"});
-      }
-      await sleep(800);
-    }
-
-    await setState({
-      dmQueue:[...found],dmIndex:0,dmScanActive:false,dmScanFound:found.size,
-      dmScanStatus:`DM scan complete · ${found.size} conversations queued`,
-      dmRunning:false,dmDeleted:0,dmSkipped:0,dmFailed:0,
-      dmLastError:found.size ? "" : "No DM conversations were discovered in the currently loaded inbox."
-    });
-  }
-
-  // ---------- shared helpers ----------
   async function waitFor(selector,timeout=5000){
     const start = Date.now();
+
     while(Date.now()-start < timeout){
       const el = document.querySelector(selector);
       if(el) return el;
       await sleep(140);
     }
+
     return null;
   }
 
@@ -298,28 +275,38 @@
   }
 
   function findClickableByText(patterns){
-    const selectors = [
-      'button','[role="button"]','[role="menuitem"]','a'
-    ];
-    for(const el of document.querySelectorAll(selectors.join(","))){
+    for(const el of document.querySelectorAll(
+      'button,[role="button"],[role="menuitem"],a'
+    )){
       const text = visibleText(el);
       if(patterns.some(rx => rx.test(text))) return el;
     }
+
     return null;
   }
 
-  // ---------- post deletion ----------
   async function waitForOwnArticle(username,id,timeout=15000){
     const start = Date.now();
     const wanted = `/${username.toLowerCase()}/status/${id}`;
+
     while(Date.now()-start < timeout){
       for(const article of document.querySelectorAll('article[data-testid="tweet"]')){
-        if([...article.querySelectorAll('a[href*="/status/"]')].some(a => (a.getAttribute("href")||"").toLowerCase().startsWith(wanted))){
+        const links = [...article.querySelectorAll('a[href*="/status/"]')];
+
+        if(
+          links.some(a =>
+            (a.getAttribute("href") || "")
+              .toLowerCase()
+              .startsWith(wanted)
+          )
+        ){
           return article;
         }
       }
+
       await sleep(350);
     }
+
     return null;
   }
 
@@ -342,21 +329,21 @@
 
         if(pass < maxPasses){
           const nextPass = pass + 1;
+
           await setState({
             running:false,
             scanActive:true,
+            scanPhase:"posts",
+            scanCollected:[],
             deepCleanActive:true,
             deepCleanPass:nextPass,
             scanFound:0,
-            scanStage:"posts",
-            scanBuffer:[],
-            scanPostsFound:0,
-            scanRepliesFound:0,
-            scanStatus:`Deep Clean pass ${nextPass}/${maxPasses} · rescanning Posts tab…`,
+            scanStatus:`Deep Clean pass ${nextPass}/${maxPasses} · rescanning Posts…`,
             queue:[],
             index:0,
             lastError:error
           });
+
           await sleep(650);
           location.replace(`https://x.com/${state.username}`);
           return;
@@ -366,11 +353,14 @@
           running:false,
           scanActive:false,
           deepCleanActive:false,
+          scanPhase:"",
+          scanCollected:[],
           verifyPending:false,
           verifyId:"",
           verifyAttempts:0,
           lastError:error || `Deep Clean completed after ${maxPasses} passes.`
         });
+
         await sleep(500);
         location.replace("https://x.com/home");
         return;
@@ -384,28 +374,38 @@
         verifyAttempts:0,
         lastError:error || "Post cleanup completed."
       });
+
       await sleep(450);
       location.replace("https://x.com/home");
       return;
     }
 
-    const processed = nextIndex;
-    const cooldown = processed > 0 && processed % 25 === 0 ? 8000 : 0;
-    const jitter = 2400 + Math.floor(Math.random() * 1200);
-    await sleep(cooldown + jitter);
+    const cooldown = nextIndex > 0 && nextIndex % 25 === 0 ? 8000 : 0;
+    const jitter = 2400 + Math.floor(Math.random()*1200);
+
+    await sleep(cooldown+jitter);
 
     const live = await getState();
     if(!live.running) return;
 
-    location.replace(`https://x.com/${state.username}/status/${state.queue[nextIndex]}`);
+    location.replace(
+      `https://x.com/${state.username}/status/${state.queue[nextIndex]}`
+    );
   }
 
   async function runPostDeletion(){
     await sleep(700);
-    const state = await getState();
-    if(!state.running || !state.queue?.length || !state.username || !state.accountId) return;
 
-    if((state.index || 0) >= state.queue.length){
+    const state = await getState();
+
+    if(
+      !state.running ||
+      !state.queue?.length ||
+      !state.username ||
+      !state.accountId
+    ) return;
+
+    if((state.index||0) >= state.queue.length){
       await setState({
         running:false,
         verifyPending:false,
@@ -413,7 +413,6 @@
         verifyAttempts:0,
         lastError:"Post cleanup completed."
       });
-      if(location.pathname.includes("/status/")) location.replace("https://x.com/home");
       return;
     }
 
@@ -426,18 +425,22 @@
         verifyAttempts:0,
         lastError:"Safety stop: logged-in X account changed or could not be verified."
       });
+
       alert("Archive Cleaner stopped because the logged-in X account could not be verified.");
       return;
     }
 
-    const id = state.queue[state.index || 0];
+    const id = state.queue[state.index||0];
     if(!id){
-      await setState({running:false,verifyPending:false,verifyId:"",verifyAttempts:0});
+      await setState({
+        running:false,
+        verifyPending:false,
+        verifyId:"",
+        verifyAttempts:0
+      });
       return;
     }
 
-    // Verification stage: after a Delete confirmation, reload the exact status URL.
-    // Only count it as deleted when the authored post no longer renders.
     if(state.verifyPending && state.verifyId === id){
       const survivor = await waitForOwnArticle(state.username,id,6500);
 
@@ -447,22 +450,23 @@
       }
 
       const attempts = state.verifyAttempts || 1;
+
       if(attempts >= 3){
         await advancePost(
           state,
           "failed",
-          `Post ${id} still exists after ${attempts} verified deletion attempts. Deep Clean can try it again on the next pass.`
+          `Post ${id} still exists after ${attempts} verified deletion attempts.`
         );
         return;
       }
 
-      // Still present: clear verification and immediately retry the same post.
       await setState({
         verifyPending:false,
         verifyId:"",
         verifyAttempts:attempts,
         lastError:`Post ${id} survived attempt ${attempts}; retrying…`
       });
+
       await sleep(800);
     }
 
@@ -470,16 +474,24 @@
     if(!liveState.running) return;
 
     const article = await waitForOwnArticle(liveState.username,id,12000);
+
     if(!article){
-      // If this is an ordinary first visit and the post is already gone, treat it
-      // as skipped/already deleted. During verification, absence is handled above.
-      await advancePost(liveState,"skipped",`Post ${id} was unavailable or already deleted.`);
+      await advancePost(
+        liveState,
+        "skipped",
+        `Post ${id} was unavailable or already deleted.`
+      );
       return;
     }
 
     const menu = article.querySelector('button[data-testid="caret"]');
+
     if(!menu){
-      await advancePost(liveState,"failed",`Could not open the menu for ${id}.`);
+      await advancePost(
+        liveState,
+        "failed",
+        `Could not open the menu for ${id}.`
+      );
       return;
     }
 
@@ -488,6 +500,7 @@
 
     let del = null;
     const menuStart = Date.now();
+
     while(Date.now()-menuStart < 6000 && !del){
       del = findClickableByText([
         /^delete$/i,
@@ -496,28 +509,40 @@
         /^supprimer le post$/i,
         /^supprimer la publication$/i
       ]);
+
       if(!del) await sleep(160);
     }
 
     if(!del){
       document.body.click();
-      await advancePost(liveState,"failed",`No Delete action was available for ${id}.`);
+      await advancePost(
+        liveState,
+        "failed",
+        `No Delete action was available for ${id}.`
+      );
       return;
     }
 
     del.click();
-    const confirm = await waitFor('[data-testid="confirmationSheetConfirm"]',6000);
+
+    const confirm = await waitFor(
+      '[data-testid="confirmationSheetConfirm"]',
+      6000
+    );
+
     if(!confirm){
-      await advancePost(liveState,"failed",`Delete confirmation did not appear for ${id}.`);
+      await advancePost(
+        liveState,
+        "failed",
+        `Delete confirmation did not appear for ${id}.`
+      );
       return;
     }
 
     confirm.click();
 
-    // Record a verification checkpoint BEFORE reloading. This prevents a successful
-    // click from being counted without proof that the post disappeared.
-    const priorAttempts = liveState.verifyAttempts || 0;
-    const attempt = Math.min(priorAttempts + 1, 3);
+    const attempt = Math.min((liveState.verifyAttempts||0)+1,3);
+
     await setState({
       verifyPending:true,
       verifyId:id,
@@ -526,178 +551,26 @@
     });
 
     await sleep(1100);
-    location.replace(`https://x.com/${liveState.username}/status/${id}?xac_verify=${attempt}&t=${Date.now()}`);
-  }
 
-  // ---------- DM deletion ----------
-  async function clickConversationInfo(){
-    const direct = document.querySelector(
-      '[data-testid="conversationInfoButton"],button[aria-label*="conversation info" i],button[aria-label*="details" i],a[aria-label*="conversation info" i]'
+    location.replace(
+      `https://x.com/${liveState.username}/status/${id}?xac_verify=${attempt}&t=${Date.now()}`
     );
-    if(direct){ direct.click(); return true; }
-
-    const info = findClickableByText([/^conversation info$/i,/^info$/i,/^details$/i,/^informations sur la conversation$/i]);
-    if(info){ info.click(); return true; }
-
-    // Some current layouts expose a More/three-dot button first.
-    const more = document.querySelector(
-      'button[data-testid="caret"],button[aria-label*="more" i],[role="button"][aria-label*="more" i]'
-    );
-    if(more){
-      more.click();
-      await sleep(250);
-      const item = findClickableByText([/^conversation info$/i,/^info$/i,/^details$/i]);
-      if(item){ item.click(); return true; }
-    }
-    return false;
-  }
-
-  async function findConversationRemovalAction(timeout=6500){
-    const removePatterns = [
-      /^delete conversation$/i,
-      /^delete$/i,
-      /^leave conversation$/i,
-      /^supprimer la conversation$/i,
-      /^quitter la conversation$/i
-    ];
-    const start = Date.now();
-
-    while(Date.now()-start < timeout){
-      let action = findClickableByText(removePatterns);
-      if(action) return action;
-
-      // On some layouts Conversation Info has another three-dot/More menu.
-      const moreButtons = [...document.querySelectorAll(
-        'button[data-testid="caret"],button[aria-label*="more" i],[role="button"][aria-label*="more" i]'
-      )];
-      for(const button of moreButtons.slice(-3)){
-        button.click();
-        await sleep(220);
-        action = findClickableByText(removePatterns);
-        if(action) return action;
-        document.body.click();
-      }
-      await sleep(220);
-    }
-    return null;
-  }
-
-  async function confirmConversationRemoval(timeout=5000){
-    const start = Date.now();
-    while(Date.now()-start < timeout){
-      const testId = document.querySelector('[data-testid="confirmationSheetConfirm"]');
-      if(testId) return testId;
-
-      const btn = findClickableByText([
-        /^delete$/i,/^delete conversation$/i,/^leave$/i,/^leave conversation$/i,
-        /^supprimer$/i,/^supprimer la conversation$/i,/^quitter$/i,/^quitter la conversation$/i
-      ]);
-      if(btn) return btn;
-      await sleep(160);
-    }
-    return null;
-  }
-
-  async function advanceDm(state,kind,error=""){
-    const nextIndex = (state.dmIndex||0)+1;
-
-    await setState({
-      dmIndex:nextIndex,
-      [kind]:(state[kind]||0)+1,
-      dmLastError:error
-    });
-
-    // Critical hotfix:
-    // Do not leave X on the URL of a conversation that was just removed.
-    if(nextIndex >= state.dmQueue.length){
-      await setState({
-        dmRunning:false,
-        dmScanActive:false,
-        dmLastError:error || "DM cleanup completed."
-      });
-      await sleep(450);
-      location.replace("https://x.com/messages");
-      return;
-    }
-
-    const processed = nextIndex;
-    const cooldown = processed > 0 && processed % 20 === 0 ? 7000 : 0;
-    const jitter = 2200 + Math.floor(Math.random() * 1200);
-    await sleep(cooldown + jitter);
-
-    // Respect Pause / Stop All while waiting.
-    const live = await getState();
-    if(!live.dmRunning) return;
-
-    location.replace(`https://x.com${state.dmQueue[nextIndex]}`);
-  }
-
-  async function runDmDeletion(){
-    await sleep(1000);
-    const state = await getState();
-    if(!state.dmRunning || !state.dmQueue?.length || !state.accountId) return;
-
-    // Never resume a finished DM job just because the deleted conversation route reloads.
-    if((state.dmIndex || 0) >= state.dmQueue.length){
-      await setState({dmRunning:false,dmLastError:"DM cleanup completed."});
-      if(location.pathname.startsWith("/messages/")) location.replace("https://x.com/messages");
-      return;
-    }
-
-    if(!accountMatches(state.accountId)){
-      await setState({dmRunning:false,dmLastError:"Safety stop: logged-in X account changed or could not be verified."});
-      alert("DM Cleaner stopped because the logged-in X account could not be verified.");
-      return;
-    }
-
-    const href = state.dmQueue[state.dmIndex||0];
-    if(!href){ await setState({dmRunning:false}); return; }
-
-    if(!location.pathname.startsWith(href)){
-      location.href = `https://x.com${href}`;
-      return;
-    }
-
-    // Wait for the conversation view to render.
-    await sleep(900);
-
-    const openedInfo = await clickConversationInfo();
-    if(!openedInfo){
-      await advanceDm(state,"dmFailed",`Could not open Conversation info for ${href}.`);
-      return;
-    }
-
-    await sleep(500);
-    const remove = await findConversationRemovalAction();
-    if(!remove){
-      await advanceDm(state,"dmSkipped",`No Delete/Leave conversation action was found for ${href}.`);
-      return;
-    }
-
-    remove.click();
-    await sleep(300);
-
-    const confirm = await confirmConversationRemoval();
-    if(!confirm){
-      await advanceDm(state,"dmFailed",`Removal confirmation did not appear for ${href}.`);
-      return;
-    }
-
-    confirm.click();
-    await sleep(700);
-    await advanceDm(state,"dmDeleted");
   }
 
   runPostScanner().catch(async err => {
-    await setState({scanActive:false,scanStatus:"Scan stopped",lastError:`Scan error: ${err?.message || err}`});
-  });
-
-  runDmScanner().catch(async err => {
-    await setState({dmScanActive:false,dmScanStatus:"DM scan stopped",dmLastError:`DM scan error: ${err?.message || err}`});
+    await setState({
+      scanActive:false,
+      deepCleanActive:false,
+      scanPhase:"",
+      scanCollected:[],
+      scanStatus:"Scan stopped",
+      lastError:`Scan error: ${err?.message || err}`
+    });
   });
 
   runPostDeletion().catch(async err => {
     const s = await getState();
+
     await setState({
       running:false,
       verifyPending:false,
@@ -706,10 +579,5 @@
       failed:(s.failed||0)+1,
       lastError:`Deletion error: ${err?.message || err}`
     });
-  });
-
-  runDmDeletion().catch(async err => {
-    const s = await getState();
-    await setState({dmRunning:false,dmFailed:(s.dmFailed||0)+1,dmLastError:`DM removal error: ${err?.message || err}`});
   });
 })();
