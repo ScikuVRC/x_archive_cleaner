@@ -76,9 +76,7 @@ async function refresh(){
   const s = await chrome.storage.local.get([
     "accountId","username",
     "queue","index","running","deleted","skipped","failed","lastError",
-    "sourceMode","scanActive","scanFound","scanStatus",
-    "deepCleanActive","deepCleanPass","deepCleanMaxPasses",
-    "verifyPending","verifyAttempts"
+    "sourceMode","scanActive","scanFound","scanStatus"
   ]);
 
   $("accountName").textContent = s.username ? `@${s.username}` : "No account detected";
@@ -94,19 +92,11 @@ async function refresh(){
 
   let status = s.running ? "Deleting…" : "Ready";
 
-  if(s.deepCleanActive){
-    status = `Deep Clean pass ${s.deepCleanPass || 1}/${s.deepCleanMaxPasses || 3}…`;
-  }
-
-  if(s.verifyPending){
-    status += `\nVerifying deletion · attempt ${s.verifyAttempts || 1}/3`;
-  }
-
   if(s.scanActive){
     status = s.scanStatus || `Scanning… ${s.scanFound || 0} found`;
   }
 
-  if(!q.length && !s.scanActive && !s.deepCleanActive){
+  if(!q.length && !s.scanActive){
     status = s.lastError || "Nothing loaded yet.";
   }else if(s.lastError){
     status += `\n${s.lastError}`;
@@ -159,10 +149,6 @@ $("stopAllBtn").addEventListener("click", async () => {
   await chrome.storage.local.set({
     running:false,
     scanActive:false,
-    deepCleanActive:false,
-    verifyPending:false,
-    verifyId:"",
-    verifyAttempts:0,
     jobId:"",
     rateLimitHits:0,
     lastError:"Automation stopped manually."
@@ -211,10 +197,6 @@ $("importBtn").addEventListener("click", async () => {
     scanActive:false,
     scanPhase:"",
     scanCollected:[],
-    deepCleanActive:false,
-    verifyPending:false,
-    verifyId:"",
-    verifyAttempts:0,
     lastError:notes.join("\n")
   });
 
@@ -244,10 +226,6 @@ $("scanBtn").addEventListener("click", async () => {
     deleted:0,
     skipped:0,
     failed:0,
-    deepCleanActive:false,
-    verifyPending:false,
-    verifyId:"",
-    verifyAttempts:0,
     lastError:""
   });
 
@@ -273,20 +251,6 @@ $("startBtn").addEventListener("click", async () => {
   $("confirmModal").classList.add("show");
 });
 
-$("deepCleanBtn").addEventListener("click", async () => {
-  const s = await chrome.storage.local.get(["accountId","username","scanActive","running"]);
-
-  if(!s.accountId || !s.username) return alert("Press Get Account first.");
-  if(s.scanActive || s.running) return alert("Pause the current job before starting Deep Clean.");
-
-  pendingAction = "deep";
-  $("confirmTitle").textContent = "Run Deep Clean?";
-  $("confirmCopy").textContent = "Deep Clean will repeatedly scan Posts and Replies and verify deletion for up to";
-  $("confirmCount").textContent = "3 passes";
-  $("confirmFoot").textContent = "Posts that survive a deletion attempt will be retried up to 3 times.";
-  $("confirmModal").classList.add("show");
-});
-
 function closeConfirm(){
   pendingAction = null;
   $("sureBtn").disabled = false;
@@ -306,50 +270,12 @@ $("sureBtn").addEventListener("click", async () => {
       jobId,
       running:true,
       rateLimitHits:0,
-      verifyReloads:0,
-      lastError:"",
-      verifyPending:false,
-      verifyId:"",
-      verifyAttempts:0
-    });
-
-    const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
-    if(tab?.id){
-      await chrome.tabs.update(tab.id,{url:withJob(`https://x.com/${s.username}/status/${id}`,jobId)});
-    }
-  }
-
-  if(pendingAction === "deep"){
-    const s = await chrome.storage.local.get(["username"]);
-    if(!s.username) return closeConfirm();
-
-    await chrome.storage.local.set({
-      jobId,
-      deleted:0,
-      skipped:0,
-      failed:0,
-      rateLimitHits:0,
-      verifyReloads:0,
-      deepCleanActive:true,
-      deepCleanPass:1,
-      deepCleanMaxPasses:3,
-      scanActive:true,
-      scanPhase:"posts",
-      scanCollected:[],
-      scanFound:0,
-      scanStatus:"Deep Clean pass 1/3 · scanning Posts…",
-      queue:[],
-      index:0,
-      running:false,
-      verifyPending:false,
-      verifyId:"",
-      verifyAttempts:0,
       lastError:""
     });
 
     const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
     if(tab?.id){
-      await chrome.tabs.update(tab.id,{url:withJob(`https://x.com/${s.username}`,jobId)});
+      await chrome.tabs.update(tab.id,{url:withJob(`https://x.com/${s.username}/status/${id}`,jobId)});
     }
   }
 
@@ -362,10 +288,6 @@ $("pauseBtn").addEventListener("click", async () => {
   await chrome.storage.local.set({
     running:false,
     scanActive:false,
-    deepCleanActive:false,
-    verifyPending:false,
-    verifyId:"",
-    verifyAttempts:0,
     jobId:"",
     rateLimitHits:0,
     scanStatus:"Paused"
@@ -388,14 +310,8 @@ $("resetBtn").addEventListener("click", async () => {
     scanStatus:"",
     scanPhase:"",
     scanCollected:[],
-    deepCleanActive:false,
-    deepCleanPass:0,
     jobId:"",
     rateLimitHits:0,
-    verifyReloads:0,
-    verifyPending:false,
-    verifyId:"",
-    verifyAttempts:0,
     lastError:""
   });
 

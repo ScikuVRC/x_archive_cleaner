@@ -1,4 +1,4 @@
-# X Archive Cleaner v1.3.1 — Posts Only
+# X Archive Cleaner v1.4.0 — Posts Only
 
 This version removes the Direct Message / X Chat scanner and cleaner entirely.
 
@@ -9,9 +9,6 @@ This version removes the Direct Message / X Chat scanner and cleaner entirely.
 - Live account scanning.
 - Separate Posts and Replies scan phases.
 - Automatic merging and de-duplication.
-- Verified deletion.
-- Up to 3 deletion retries when a post survives.
-- Deep Clean with up to 3 Posts + Replies rescans.
 - Pause, Reset, and Stop All Automation controls.
 
 ## Removed
@@ -32,16 +29,20 @@ The content script now only reacts to post scanning and post deletion jobs.
 2. Unzip this package.
 3. Enable Developer mode.
 4. Click **Load unpacked**.
-5. Select the `x_archive_cleaner_v1_3_1` folder.
+5. Select the `x_archive_cleaner_v1_4_0` folder.
 6. Open X and press **Get Account**.
 
-## Recommended full cleanup
-For the most complete post cleanup:
+## Recommended cleanup
 1. Import your X archive and delete that queue.
-2. Run **Scan Posts + Replies**.
-3. Run **Deep Clean · Rescan + Verify** afterward.
+2. Optionally run **Scan Posts + Replies** and delete what it finds.
 
 Live profile scanning is limited to content X currently exposes in its profile timelines, so archive import remains the best source for very old posts.
+
+## Changes in 1.4.0
+- **Redesigned popup:** glass-style cards on a dark gradient background, line icons, a pill-style Archive / Scan switch, larger stat tiles, a glowing progress bar, styled file picker, focus rings, and an animated confirmation dialog. Stop All Automation now sits in the Queue controls as "Stop all".
+- **Removed Deep Clean** (the multi-pass rescan loop) and the **post-delete verification/retry step**. Each post is deleted once; it counts as deleted when X removes it from the page, otherwise as failed.
+- **Fixed "Could not open the menu" failures:** the post menu button is now found by its test id, then its "More" label, then any menu-opening button that is not an action-bar button (so Repost is never clicked by mistake). Waits up to 8s for it to appear.
+- **Delete item lookup** is more tolerant of menu markup and labels, and errors now list the menu items or buttons that were seen, to make future breakage easy to diagnose.
 
 ## Changes in 1.3.1
 - **Worker-tab lock:** only the tab a job was started in runs it. Previously, opening or refreshing any other x.com tab mid-job would mark the current post "skipped" and/or yank that tab to your profile.

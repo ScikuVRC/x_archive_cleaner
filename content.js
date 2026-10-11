@@ -77,8 +77,6 @@
       "accountId","username","jobId",
       "queue","index","running","deleted","skipped","failed",
       "scanActive","scanFound","scanStatus","scanPhase","scanCollected",
-      "deepCleanActive","deepCleanPass","deepCleanMaxPasses",
-      "verifyPending","verifyId","verifyAttempts","verifyReloads",
       "rateLimitHits"
     ]);
   }
@@ -161,7 +159,6 @@
     if(!accountMatches(initial.accountId)){
       await setState({
         scanActive:false,
-        deepCleanActive:false,
         scanStatus:"Scan stopped",
         lastError:"Safety stop: logged-in X account could not be verified."
       });
@@ -188,17 +185,12 @@
     let previous = 0;
     let lastWrittenSize = -1;
 
-    const deep = !!initial.deepCleanActive;
-    const pass = initial.deepCleanPass || 1;
-    const maxPasses = initial.deepCleanMaxPasses || 3;
-    const stagnantLimit = deep ? 22 : 14;
-    const maxRounds = deep ? 520 : 380;
+    const stagnantLimit = 14;
+    const maxRounds = 380;
     const label = phase === "posts" ? "Posts" : "Replies";
 
     await setState({
-      scanStatus: deep
-        ? `Deep Clean pass ${pass}/${maxPasses} · scanning ${label}…`
-        : `Scanning ${label}…`,
+      scanStatus:`Scanning ${label}…`,
       scanFound:collected.size,
       lastError:""
     });
@@ -221,9 +213,8 @@
         await setState({
           scanCollected:[...collected],
           scanFound:collected.size,
-          scanStatus: deep
-            ? `Deep Clean pass ${pass}/${maxPasses} · ${label}\n${phaseFound.size} this tab · ${collected.size} unique total`
-            : `${label} scan\n${phaseFound.size} this tab · ${collected.size} unique total`
+          scanStatus:`${label} scan
+${phaseFound.size} this tab · ${collected.size} unique total`
         });
       }
 
@@ -242,14 +233,14 @@
         behavior:"smooth"
       });
 
-      await sleep(deep ? 700 : 450);
+      await sleep(450);
 
       window.scrollTo({
         top:document.documentElement.scrollHeight,
         behavior:"smooth"
       });
 
-      await sleep(deep ? 850 : 650);
+      await sleep(650);
     }
 
     if(phase === "posts"){
@@ -257,9 +248,7 @@
         scanPhase:"replies",
         scanCollected:[...collected],
         scanFound:collected.size,
-        scanStatus: deep
-          ? `Deep Clean pass ${pass}/${maxPasses} · opening Replies…`
-          : `Posts complete · opening Replies…`
+        scanStatus:`Posts complete · opening Replies…`
       });
 
       await sleep(500);
@@ -268,51 +257,6 @@
     }
 
     const queue = [...collected];
-
-    if(deep){
-      if(queue.length === 0){
-        await setState({
-          queue:[],
-          index:0,
-          scanActive:false,
-          running:false,
-          deepCleanActive:false,
-          scanPhase:"",
-          scanCollected:[],
-          verifyPending:false,
-          verifyId:"",
-          verifyAttempts:0,
-          verifyReloads:0,
-          scanFound:0,
-          scanStatus:`Deep Clean complete · no surviving posts found after pass ${pass}`,
-          lastError:"Deep Clean completed successfully."
-        });
-
-        await sleep(500);
-        location.replace("https://x.com/home");
-        return;
-      }
-
-      await setState({
-        queue,
-        index:0,
-        scanActive:false,
-        scanPhase:"",
-        scanCollected:[],
-        running:true,
-        scanFound:queue.length,
-        scanStatus:`Deep Clean pass ${pass}/${maxPasses} · ${queue.length} survivors queued`,
-        verifyPending:false,
-        verifyId:"",
-        verifyAttempts:0,
-        verifyReloads:0,
-        lastError:""
-      });
-
-      await sleep(600);
-      location.replace(`https://x.com/${initial.username}/status/${queue[0]}`);
-      return;
-    }
 
     await setState({
       queue,
@@ -352,10 +296,16 @@
     /^eliminar$/i, /^löschen$/i, /^excluir$/i, /^elimina$/i, /^削除$/
   ];
 
+  function menuItems(){
+    return [...document.querySelectorAll('[role="menuitem"],[role="menu"] [role="button"],[data-testid="Dropdown"] [role="menuitem"]')];
+  }
+
   function findDeleteMenuItem(){
-    for(const el of document.querySelectorAll('[role="menuitem"]')){
-      const text = visibleText(el);
-      if(DELETE_LABELS.some(rx => rx.test(text))) return el;
+    for(const el of menuItems()){
+      const text = visibleText(el).split(/\r?\n/)[0].trim();
+      if(DELETE_LABELS.some(rx => rx.test(text)) || /^(delete|supprimer|eliminar|löschen|excluir|elimina)(\s|$)/i.test(text)){
+        return el;
+      }
     }
     return null;
   }
@@ -382,42 +332,6 @@
     }
 
     return null;
-  }
-
-  // Decide whether a post survived, based on the page actually having loaded
-  // rather than a fixed 6.5s timer. A slow page load used to be counted as a
-  // "verified deletion".
-  async function waitForVerifyOutcome(username,id,timeout=15000){
-    const start = Date.now();
-    let quietSince = 0;
-
-    while(Date.now()-start < timeout){
-      if(findOwnArticle(username,id)) return "survived";
-
-      const col = document.querySelector('[data-testid="primaryColumn"]');
-      const elapsed = Date.now()-start;
-
-      if(col){
-        const errorShown = !!col.querySelector('[data-testid="error-detail"]');
-        const otherContent = !!col.querySelector("article");
-        const spinning = !!col.querySelector('[role="progressbar"]');
-
-        if(!spinning){
-          if(!quietSince) quietSince = Date.now();
-        }else{
-          quietSince = 0;
-        }
-
-        const settled = errorShown || otherContent || (quietSince && Date.now()-quietSince >= 2500);
-        if(settled && elapsed >= 3000) return "gone";
-      }
-
-      await sleep(250);
-    }
-
-    // Column rendered but never clearly settled: fall back to the old
-    // assumption, but only after a much longer wait.
-    return document.querySelector('[data-testid="primaryColumn"]') ? "gone" : "unknown";
   }
 
   const ERROR_TOAST_RX = /rate limit|try again|something went wrong|went wrong|error|réessayer|erreur/i;
@@ -464,64 +378,14 @@
     await setState({
       index:nextIndex,
       [kind]:(state[kind]||0)+1,
-      verifyPending:false,
-      verifyId:"",
-      verifyAttempts:0,
-      verifyReloads:0,
       rateLimitHits:0,
       lastError:error
     });
 
     if(nextIndex >= state.queue.length){
-      if(state.deepCleanActive){
-        const pass = state.deepCleanPass || 1;
-        const maxPasses = state.deepCleanMaxPasses || 3;
-
-        if(pass < maxPasses){
-          const nextPass = pass + 1;
-
-          await setState({
-            running:false,
-            scanActive:true,
-            scanPhase:"posts",
-            scanCollected:[],
-            deepCleanActive:true,
-            deepCleanPass:nextPass,
-            scanFound:0,
-            scanStatus:`Deep Clean pass ${nextPass}/${maxPasses} · rescanning Posts…`,
-            queue:[],
-            index:0,
-            lastError:error
-          });
-
-          await sleep(650);
-          location.replace(`https://x.com/${state.username}`);
-          return;
-        }
-
-        await setState({
-          running:false,
-          scanActive:false,
-          deepCleanActive:false,
-          scanPhase:"",
-          scanCollected:[],
-          verifyPending:false,
-          verifyId:"",
-          verifyAttempts:0,
-          lastError:error || `Deep Clean completed after ${maxPasses} passes.`
-        });
-
-        await sleep(500);
-        location.replace("https://x.com/home");
-        return;
-      }
-
       await setState({
         running:false,
         scanActive:false,
-        verifyPending:false,
-        verifyId:"",
-        verifyAttempts:0,
         lastError:error || "Post cleanup completed."
       });
 
@@ -540,14 +404,57 @@
     );
   }
 
+  const MORE_LABEL_RX = /^(more|plus|más|mehr|mais|altro|もっと見る)$/i;
+
+  // The caret's data-testid / markup changes now and then, so fall back to the
+  // "More" aria-label and to any menu-popup button. The post's own article is
+  // preferred over reply-parent articles on the same status page.
+  function findMenuButton(username,id,article){
+    const rx = statusHrefRx(username,id);
+    const articles = [article,...document.querySelectorAll('article')];
+
+    for(const art of articles){
+      const own = [...art.querySelectorAll("a[href*='/status/']")]
+        .some(a => rx.test(a.getAttribute("href") || ""));
+      if(!own) continue;
+
+      const buttons = [...art.querySelectorAll('button,[role="button"]')];
+
+      // Action-bar buttons (Repost also opens a menu) must never be mistaken
+      // for the "…" menu, or we'd click Repost/Quote instead of Delete.
+      const ACTION_RX = /^(reply|retweet|unretweet|like|unlike|bookmark|removeBookmark|share|analytics|app-text-transition-container)$/i;
+      const ACTION_LABEL_RX = /repost|reply|like|bookmark|share|view|quote|follow/i;
+
+      const btn =
+        art.querySelector('[data-testid="caret"]') ||
+        buttons.find(b => MORE_LABEL_RX.test((b.getAttribute("aria-label") || "").trim())) ||
+        buttons.find(b =>
+          b.getAttribute("aria-haspopup") === "menu" &&
+          !ACTION_RX.test(b.getAttribute("data-testid") || "") &&
+          !ACTION_LABEL_RX.test(b.getAttribute("aria-label") || "")
+        );
+
+      if(btn) return btn;
+    }
+
+    return null;
+  }
+
+  async function waitForMenuButton(username,id,article,timeout=8000){
+    const start = Date.now();
+
+    while(Date.now()-start < timeout){
+      const btn = findMenuButton(username,id,article);
+      if(btn) return btn;
+      await sleep(250);
+    }
+
+    return null;
+  }
+
   async function stopDeletion(lastError){
     await setState({
       running:false,
-      deepCleanActive:false,
-      verifyPending:false,
-      verifyId:"",
-      verifyAttempts:0,
-      verifyReloads:0,
       rateLimitHits:0,
       lastError
     });
@@ -568,13 +475,7 @@
     if(!isWorker(state)) return;
 
     if((state.index||0) >= state.queue.length){
-      await setState({
-        running:false,
-        verifyPending:false,
-        verifyId:"",
-        verifyAttempts:0,
-        lastError:"Post cleanup completed."
-      });
+      await setState({running:false,lastError:"Post cleanup completed."});
       return;
     }
 
@@ -588,53 +489,6 @@
     if(!id){
       await stopDeletion("");
       return;
-    }
-
-    if(state.verifyPending && state.verifyId === id){
-      const outcome = await waitForVerifyOutcome(state.username,id);
-
-      if(outcome === "gone"){
-        await advancePost(state,"deleted","");
-        return;
-      }
-
-      if(outcome === "unknown"){
-        const reloads = (state.verifyReloads||0)+1;
-
-        if(reloads > 2){
-          await advancePost(state,"failed",`Could not confirm whether ${id} was deleted (page never loaded).`);
-          return;
-        }
-
-        await setState({
-          verifyReloads:reloads,
-          lastError:`Verification page for ${id} did not load; reloading (${reloads}/2)…`
-        });
-        await sleep(1500);
-        location.replace(`https://x.com/${state.username}/status/${id}?xac_verify=r${reloads}&t=${Date.now()}`);
-        return;
-      }
-
-      const attempts = state.verifyAttempts || 1;
-
-      if(attempts >= 3){
-        await advancePost(
-          state,
-          "failed",
-          `Post ${id} still exists after ${attempts} verified deletion attempts.`
-        );
-        return;
-      }
-
-      await setState({
-        verifyPending:false,
-        verifyId:"",
-        verifyAttempts:attempts,
-        verifyReloads:0,
-        lastError:`Post ${id} survived attempt ${attempts}; retrying…`
-      });
-
-      await sleep(800);
     }
 
     const liveState = await getState();
@@ -651,13 +505,17 @@
       return;
     }
 
-    const menu = article.querySelector('button[data-testid="caret"]');
+    const menu = await waitForMenuButton(liveState.username,id,article);
 
     if(!menu){
+      const seenButtons = [...article.querySelectorAll('button,[role="button"]')]
+        .map(b => b.getAttribute("data-testid") || b.getAttribute("aria-label") || "?")
+        .join(", ");
+
       await advancePost(
         liveState,
         "failed",
-        `Could not open the menu for ${id}.`
+        `Could not find the "…" menu for ${id}. Buttons seen: ${seenButtons || "(none)"}`
       );
       return;
     }
@@ -674,11 +532,12 @@
     }
 
     if(!del){
+      const seen = menuItems().map(el => visibleText(el).split(/\r?\n/)[0]).filter(Boolean).join(" | ");
       document.body.click();
       await advancePost(
         liveState,
         "failed",
-        `No Delete action was available for ${id}.`
+        `No Delete action for ${id}. Menu showed: ${seen || "(nothing)"}`
       );
       return;
     }
@@ -717,8 +576,6 @@
 
       await setState({
         rateLimitHits:hits,
-        verifyPending:false,
-        verifyId:"",
         lastError:`X rejected the delete ("${result.text}"). Backing off ${Math.round(waitMs/60000)} min (${hits}/5)…`
       });
 
@@ -728,27 +585,20 @@
       return;
     }
 
-    const attempt = Math.min((liveState.verifyAttempts||0)+1,3);
-
-    await setState({
-      verifyPending:true,
-      verifyId:id,
-      verifyAttempts:attempt,
-      verifyReloads:0,
-      lastError:`Verifying deletion of ${id} · attempt ${attempt}/3`
-    });
-
-    await sleep(result.status === "removed" ? 300 : 1100);
-
-    location.replace(
-      `https://x.com/${liveState.username}/status/${id}?xac_verify=${attempt}&t=${Date.now()}`
-    );
+    if(result.status === "removed"){
+      await advancePost(liveState,"deleted","");
+    }else{
+      await advancePost(
+        liveState,
+        "failed",
+        `Could not confirm that ${id} was deleted (X did not remove it from the page).`
+      );
+    }
   }
 
   runPostScanner().catch(async err => {
     await setState({
       scanActive:false,
-      deepCleanActive:false,
       scanPhase:"",
       scanCollected:[],
       scanStatus:"Scan stopped",
@@ -761,11 +611,6 @@
 
     await setState({
       running:false,
-      deepCleanActive:false,
-      verifyPending:false,
-      verifyId:"",
-      verifyAttempts:0,
-      verifyReloads:0,
       failed:(s.failed||0)+1,
       lastError:`Deletion error: ${err?.message || err}`
     });

@@ -7,61 +7,153 @@
 <style>
 :root{
   color-scheme:dark;
-  --bg:#07101d;--bg2:#0a1526;--panel:#0e1b2e;--line:#213752;
-  --text:#f5f8fc;--muted:#8ea2bb;--blue:#1397ff;--blue2:#4dc4ff;
-  --red:#ff4e5f
+  --bg:#07080c;
+  --glass:rgba(255,255,255,.035);--glass2:rgba(255,255,255,.06);
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+  --text:#f4f6fb;--muted:#9099ad;--faint:#5d6679;
+  --accent:#6d8dff;--accent2:#b06dff;
+  --grad:linear-gradient(135deg,#5b8cff 0%,#9a6bff 100%);
+  --danger:#ff5d73;--danger2:#ff8a5d;
+  --grad-danger:linear-gradient(135deg,#ff4d6a 0%,#ff7a4d 100%);
+  --ok:#3ddc97;
+  --radius:18px;--radius-sm:12px
 }
 *{box-sizing:border-box}
 body{
-  width:420px;margin:0;color:var(--text);
-  font:13px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;
-  background:
-    radial-gradient(circle at 100% 0%,rgba(19,151,255,.13),transparent 35%),
-    linear-gradient(155deg,var(--bg),var(--bg2) 62%,#06101c)
+  width:380px;margin:0;color:var(--text);background:var(--bg);
+  font:13px/1.5 "Inter var",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;position:relative;overflow-x:hidden
 }
-.shell{padding:18px}
-.header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.logo{width:48px;height:48px;border-radius:14px}
-.title{font-size:20px;font-weight:800;letter-spacing:-.02em}
-.subtitle{color:var(--muted);font-size:12px;margin-top:2px}
-.badge{margin-left:auto;padding:4px 8px;border-radius:999px;background:#0c3152;color:#72c8ff;font-size:10px;font-weight:800}
-.card{background:rgba(13,26,44,.92);border:1px solid var(--line);border-radius:16px;padding:14px;margin:11px 0}
-.card-title{font-weight:750;margin-bottom:9px}
-.muted{color:var(--muted);font-size:11px}
-.account{display:grid;grid-template-columns:1fr auto;gap:8px}
-.account-box{background:#081421;border:1px solid #1e3651;border-radius:11px;padding:10px 11px;min-width:0}
-.account-main{font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.account-sub{color:var(--muted);font-size:11px;margin-top:2px}
-button{font:inherit;font-weight:750;border:0;border-radius:10px;padding:10px 12px;cursor:pointer}
+/* ambient glow behind everything */
+body::before{
+  content:"";position:absolute;inset:-60px -40px auto -40px;height:300px;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(260px 160px at 20% 0%,rgba(91,140,255,.28),transparent 70%),
+    radial-gradient(240px 160px at 90% 10%,rgba(154,107,255,.22),transparent 70%)
+}
+.shell{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;gap:10px}
+svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* header */
+.header{display:flex;align-items:center;gap:12px;padding:2px 2px 6px}
+.logo{width:40px;height:40px;border-radius:12px;box-shadow:0 6px 20px rgba(91,140,255,.35)}
+.title{font-size:17px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.subtitle{color:var(--muted);font-size:12px}
+.badge{
+  margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  font-size:11px;font-weight:600;color:var(--muted);background:var(--glass);border:1px solid var(--line)
+}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+/* cards */
+.card{
+  background:var(--glass);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  backdrop-filter:blur(14px);box-shadow:0 1px 0 rgba(255,255,255,.04) inset
+}
+.card-title{
+  display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:12px
+}
+.card-title svg{width:14px;height:14px;color:var(--accent)}
+.muted{color:var(--muted);font-size:12px}
+
+/* buttons */
+button{
+  font:inherit;font-weight:600;border:1px solid transparent;border-radius:var(--radius-sm);
+  padding:10px 14px;cursor:pointer;color:var(--text);
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:background .18s,border-color .18s,box-shadow .18s,transform .08s,filter .18s
+}
+button:hover{filter:brightness(1.08)}
+button:active{transform:scale(.98)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.45;cursor:not-allowed}
-.primary{color:#fff;background:linear-gradient(135deg,var(--blue),#0878eb)}
-.secondary{color:#dceafa;background:#13243a;border:1px solid #2a4464}
-.danger{color:#fff;background:linear-gradient(135deg,#ff5363,#d92740)}
+.primary{background:var(--grad);box-shadow:0 6px 18px rgba(110,120,255,.32)}
+.secondary{background:var(--glass2);border-color:var(--line)}
+.secondary:hover{border-color:var(--line2);background:rgba(255,255,255,.09)}
+.danger{background:var(--grad-danger);box-shadow:0 6px 18px rgba(255,93,115,.3)}
+.ghost-danger{color:var(--danger);background:transparent;border-color:rgba(255,93,115,.3)}
+.ghost-danger:hover{background:rgba(255,93,115,.1)}
 .full{width:100%}
-.source-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px}
-.source-tab{background:#0a1727;color:#9db1c8;border:1px solid #203a58}
-.source-tab.active{color:#fff;border-color:#168ce9;background:#0d3152}
-.pane{display:none}.pane.active{display:block}
-.file-box{display:block;border:1px dashed #31597f;border-radius:12px;padding:11px;background:#091626}
-.file-box input{width:100%;margin-top:8px}
 .row{display:flex;gap:8px}.grow{flex:1}
-.note{background:#091626;border:1px solid #1c3652;border-radius:11px;padding:10px;color:#9cb0c6}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
-.stat{background:#091626;border:1px solid #1b3450;border-radius:11px;padding:9px}
-.stat b{display:block;font-size:15px}.stat span{display:block;color:var(--muted);font-size:10px;margin-top:1px}
-.progress{height:7px;background:#07131f;border-radius:999px;overflow:hidden;margin:10px 0 7px}
-.bar{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--blue2))}
-.status{color:var(--muted);font-size:11px;white-space:pre-wrap;max-height:82px;overflow:hidden}
-.warn{border-color:#63323d;background:linear-gradient(145deg,rgba(75,22,33,.40),rgba(30,20,29,.78))}
-.warn-title{font-weight:800;color:#ff7582;margin-bottom:5px}
-.warn-copy{color:#d3b8bd;font-size:11px;margin-bottom:10px}
-.modal{display:none;position:fixed;inset:0;background:rgba(2,7,14,.90);padding:22px;align-items:center;justify-content:center}
+
+/* account */
+.account{display:flex;align-items:center;gap:10px}
+.account-box{
+  flex:1;min-width:0;display:flex;align-items:center;gap:11px;
+  background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 11px
+}
+.avatar{
+  width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--grad);color:#fff;font-weight:700;font-size:14px
+}
+.account-main{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-sub{color:var(--faint);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* segmented source switch */
+.source-tabs{
+  display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;margin-bottom:12px;
+  background:rgba(0,0,0,.32);border:1px solid var(--line);border-radius:14px
+}
+.source-tab{background:transparent;color:var(--muted);padding:8px 10px;border-radius:11px}
+.source-tab:hover{color:var(--text);filter:none}
+.source-tab.active{background:var(--glass2);color:var(--text);box-shadow:0 0 0 1px var(--line2),0 4px 12px rgba(0,0,0,.3)}
+.pane{display:none}.pane.active{display:block}
+.file-box{
+  display:block;border:1px dashed var(--line2);border-radius:var(--radius-sm);padding:12px;
+  background:rgba(0,0,0,.22);color:var(--muted);font-size:12px;transition:border-color .18s,background .18s
+}
+.file-box:hover{border-color:var(--accent);background:rgba(109,141,255,.06)}
+.file-box input{width:100%;margin-top:8px;color:var(--text);font-size:12px}
+.file-box input::file-selector-button{
+  font:inherit;font-weight:600;color:var(--text);background:var(--glass2);border:1px solid var(--line2);
+  border-radius:8px;padding:5px 10px;margin-right:10px;cursor:pointer
+}
+.note{background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;color:var(--muted);font-size:12px}
+.note b{color:var(--text);font-weight:600}
+
+/* queue */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px}
+.stat b{
+  display:block;font-size:22px;font-weight:700;letter-spacing:-.03em;line-height:1.1;
+  font-variant-numeric:tabular-nums
+}
+.stat span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.progress{height:6px;background:rgba(0,0,0,.4);border-radius:999px;overflow:hidden;margin:14px 0 10px}
+.bar{
+  height:100%;width:0;border-radius:999px;transition:width .35s ease;
+  background:var(--grad);box-shadow:0 0 12px rgba(120,120,255,.7)
+}
+.status{color:var(--muted);font-size:12px;white-space:pre-wrap;max-height:82px;overflow:hidden;min-height:18px}
+
+/* danger zone */
+.warn{
+  background:linear-gradient(160deg,rgba(255,93,115,.12),rgba(255,138,93,.04));
+  border-color:rgba(255,93,115,.25)
+}
+.warn .card-title{color:var(--danger)}.warn .card-title svg{color:var(--danger)}
+.warn-copy{color:var(--muted);font-size:12px;margin:-4px 0 12px}
+
+/* confirm modal */
+.modal{
+  display:none;position:fixed;inset:0;z-index:10;background:rgba(4,5,8,.78);padding:22px;
+  align-items:center;justify-content:center;backdrop-filter:blur(8px)
+}
 .modal.show{display:flex}
-.dialog{width:100%;background:#0c1829;border:1px solid #7a3540;border-radius:18px;padding:18px;text-align:center}
-.dialog h2{margin:0 0 8px;color:#ff6c79;font-size:17px}
-.dialog p{color:#b8c5d5;font-size:12px}
-.count-danger{font-size:28px;font-weight:850;color:#ff5262;margin:5px 0}
-.footer{text-align:center;color:#5e748e;font-size:10px;margin-top:11px}
+.dialog{
+  width:100%;background:#10121a;border:1px solid var(--line2);border-radius:22px;
+  padding:22px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:pop .18s ease-out
+}
+@keyframes pop{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
+.dialog h2{margin:0 0 8px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.dialog p{color:var(--muted);font-size:12px;margin:0}
+.count-danger{
+  font-size:40px;font-weight:800;letter-spacing:-.04em;margin:8px 0;
+  background:var(--grad-danger);-webkit-background-clip:text;background-clip:text;color:transparent
+}
+
+.footer{text-align:center;color:var(--faint);font-size:11px;padding-top:2px}
 </style>
 </head>
 <body>
@@ -70,80 +162,90 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <img class="logo" src="icon128.png" alt="">
     <div>
       <div class="title">Archive Cleaner</div>
-      <div class="subtitle">Posts & replies cleaner</div>
+      <div class="subtitle">Posts &amp; replies</div>
     </div>
-    <div class="badge">v1.3.1</div>
+    <div class="badge">v1.4.0</div>
   </div>
 
   <section class="card">
-    <div class="card-title">1. Detect account</div>
+    <div class="card-title">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Account
+    </div>
     <div class="account">
       <div class="account-box">
-        <div id="accountName" class="account-main">No account detected</div>
-        <div id="accountId" class="account-sub">Open x.com while logged in</div>
+        <div class="avatar">@</div>
+        <div style="min-width:0">
+          <div id="accountName" class="account-main">No account detected</div>
+          <div id="accountId" class="account-sub">Open x.com while logged in</div>
+        </div>
       </div>
-      <button id="grabId" class="primary">Get Account</button>
+      <button id="grabId" class="primary">Detect</button>
     </div>
   </section>
 
-  <button id="stopAllBtn" class="secondary full" style="margin:0 0 12px;border-color:#5e3440;color:#ff9ba5">
-    Stop All Automation
-  </button>
-
   <section class="card">
-    <div class="card-title">2. Choose source</div>
+    <div class="card-title">
+      <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg>Source
+    </div>
     <div class="source-tabs">
       <button id="archiveTab" class="source-tab active">Archive</button>
-      <button id="scanTab" class="source-tab">Scan Account</button>
+      <button id="scanTab" class="source-tab">Scan account</button>
     </div>
 
     <div id="archivePane" class="pane active">
       <label class="file-box">Select archive post file(s)
         <input id="archiveFiles" type="file" multiple accept=".js,.json,text/javascript,application/json">
       </label>
-      <button id="importBtn" class="secondary full" style="margin-top:8px">Import Archive</button>
-      <div class="muted" style="margin-top:7px">
+      <button id="importBtn" class="secondary full" style="margin-top:8px">
+        <svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>Import archive
+      </button>
+      <div class="muted" style="margin-top:9px">
         Supports normal post/reply archive files and common Community-post wrappers.
       </div>
     </div>
 
     <div id="scanPane" class="pane">
       <div class="note">
-        Scans both your <b>Posts</b> and <b>Replies</b> timelines and merges the discovered IDs.
-        Archive mode remains more complete for older history.
+        Scans your <b>Posts</b> and <b>Replies</b> timelines and merges the IDs it finds.
+        Archive mode is more complete for older history.
       </div>
-      <button id="scanBtn" class="primary full" style="margin-top:8px">Scan Posts + Replies</button>
+      <button id="scanBtn" class="primary full" style="margin-top:8px">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>Scan Posts + Replies
+      </button>
     </div>
   </section>
 
   <section class="card">
-    <div class="card-title">3. Queue</div>
+    <div class="card-title">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Queue
+    </div>
     <div class="stats">
-      <div class="stat"><b id="queued">0</b><span>queued</span></div>
-      <div class="stat"><b id="processed">0</b><span>processed</span></div>
-      <div class="stat"><b id="deleted">0</b><span>verified deleted</span></div>
+      <div class="stat"><b id="queued">0</b><span>Queued</span></div>
+      <div class="stat"><b id="processed">0</b><span>Processed</span></div>
+      <div class="stat"><b id="deleted">0</b><span>Deleted</span></div>
     </div>
     <div class="progress"><div id="bar" class="bar"></div></div>
     <div id="status" class="status">Nothing loaded yet.</div>
-    <div class="row" style="margin-top:9px">
-      <button id="pauseBtn" class="secondary grow">Pause</button>
+    <div class="row" style="margin-top:10px">
+      <button id="pauseBtn" class="secondary grow">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>Pause
+      </button>
       <button id="resetBtn" class="secondary">Reset</button>
+      <button id="stopAllBtn" class="ghost-danger">Stop all</button>
     </div>
   </section>
 
   <section class="card warn">
-    <div class="warn-title">Permanent post deletion</div>
-    <div class="warn-copy">Queued posts are permanently deleted from X and cannot be restored.</div>
-    <button id="startBtn" class="danger full">Delete Queued Posts</button>
-    <button id="deepCleanBtn" class="secondary full" style="margin-top:8px;border-color:#6d3b48;color:#ff9ca6">
-      Deep Clean · Rescan + Verify
-    </button>
-    <div class="muted" style="margin-top:7px">
-      Deep Clean rescans both Posts and Replies, retries survivors, and verifies each deletion.
+    <div class="card-title">
+      <svg viewBox="0 0 24 24"><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5M12 18h.01"/></svg>Permanent deletion
     </div>
+    <div class="warn-copy">Queued posts are deleted from X and cannot be restored.</div>
+    <button id="startBtn" class="danger full">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Delete queued posts
+    </button>
   </section>
 
-  <div class="footer">Runs locally in Chrome · account verified before destructive actions</div>
+  <div class="footer">Runs locally in Chrome · account verified before deleting</div>
 </div>
 
 <div id="confirmModal" class="modal">
@@ -152,7 +254,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <p id="confirmCopy"></p>
     <div id="confirmCount" class="count-danger">0</div>
     <p id="confirmFoot"></p>
-    <button id="sureBtn" class="danger full">I'm sure</button>
+    <button id="sureBtn" class="danger full" style="margin-top:14px">I'm sure</button>
     <button id="cancelBtn" class="secondary full" style="margin-top:8px">Cancel</button>
   </div>
 </div>
