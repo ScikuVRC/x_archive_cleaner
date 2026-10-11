@@ -1,56 +1,78 @@
-# X Archive Cleaner v1.4.0 — Posts Only
+# X Archive Cleaner
 
-This version removes the Direct Message / X Chat scanner and cleaner entirely.
+A Chrome extension that bulk-deletes **your own** posts and replies on X (x.com), using your downloaded X archive or a live scan of your profile.
 
-## Included
-- Automatic logged-in X account detection.
-- Archive import.
-- Common Community-post archive wrappers.
-- Live account scanning.
-- Separate Posts and Replies scan phases.
-- Automatic merging and de-duplication.
-- Pause, Reset, and Stop All Automation controls.
+![Version](https://img.shields.io/badge/version-1.4.0-5b8cff) ![Manifest](https://img.shields.io/badge/manifest-v3-7c5cff) ![Privacy](https://img.shields.io/badge/data%20collected-none-2ea043)
 
-## Removed
-All Direct Message functionality has been removed:
-- No DM Scanner.
-- No X Chat scanner.
-- No `/messages` handling.
-- No `/i/chat` handling.
-- No DM conversation queue.
-- No DM deletion.
-- No DM redirect/navigation logic.
-- No persistent DM scan state.
+![Popup](store_screenshots/screenshot4.png)
 
-The content script now only reacts to post scanning and post deletion jobs.
+## Features
+
+- **Archive import:** load `tweet.js` / `tweets.js` files from your official X data export, including common Community-post wrappers.
+- **Live scan:** collects Posts and Replies from your profile timelines.
+- **Automatic merging and de-duplication** of the queue.
+- **Progress tracking:** Queued, Processed and Deleted counters with a live progress bar.
+- **Controls:** Pause, Reset and Stop all.
+- **Rate-limit back-off:** if X throws an error toast, the extension waits (1 to 15 minutes, up to 5 tries) instead of failing post after post.
+- **Clear diagnostics:** when a post can't be deleted, the message says what was on screen.
+- **Private:** everything runs locally. No servers, no analytics, no tracking. See the [privacy policy](privacy-policy.html).
 
 ## Install
-1. Remove/disable the older Archive Cleaner build in `chrome://extensions`.
-2. Unzip this package.
-3. Enable Developer mode.
-4. Click **Load unpacked**.
-5. Select the `x_archive_cleaner_v1_4_0` folder.
-6. Open X and press **Get Account**.
 
-## Recommended cleanup
-1. Import your X archive and delete that queue.
-2. Optionally run **Scan Posts + Replies** and delete what it finds.
+The extension isn't loaded from a store here, so install it unpacked:
 
-Live profile scanning is limited to content X currently exposes in its profile timelines, so archive import remains the best source for very old posts.
+1. Download or clone this repository.
+2. Open `chrome://extensions` and turn on **Developer mode**.
+3. Click **Load unpacked** and select the project folder.
+4. Open [x.com](https://x.com) while logged in and open the extension popup.
 
-## Changes in 1.4.0
-- **Redesigned popup:** glass-style cards on a dark gradient background, line icons, a pill-style Archive / Scan switch, larger stat tiles, a glowing progress bar, styled file picker, focus rings, and an animated confirmation dialog. Stop All Automation now sits in the Queue controls as "Stop all".
-- **Removed Deep Clean** (the multi-pass rescan loop) and the **post-delete verification/retry step**. Each post is deleted once; it counts as deleted when X removes it from the page, otherwise as failed.
-- **Fixed "Could not open the menu" failures:** the post menu button is now found by its test id, then its "More" label, then any menu-opening button that is not an action-bar button (so Repost is never clicked by mistake). Waits up to 8s for it to appear.
-- **Delete item lookup** is more tolerant of menu markup and labels, and errors now list the menu items or buttons that were seen, to make future breakage easy to diagnose.
+If you have an older build installed, remove it first.
 
-## Changes in 1.3.1
-- **Worker-tab lock:** only the tab a job was started in runs it. Previously, opening or refreshing any other x.com tab mid-job would mark the current post "skipped" and/or yank that tab to your profile.
-- **Honest verification:** a slow-loading page is no longer counted as a verified deletion; the verifier waits for the page to settle and reloads (up to 2x) if it never loads.
-- **No aborted deletes:** after confirming, the script waits for X to actually remove the post before navigating, instead of a fixed 1.1s.
-- **Rate-limit backoff:** error toasts from X trigger an exponential backoff (1→15 min, max 5 tries) instead of marking post after post as failed.
-- **Exact ID matching:** `/status/123` no longer matches `/status/1234…`.
-- **Delete menu lookup** is scoped to open menu items and recognises a few more languages.
-- **Scanner** clicks X's "Retry" button when a timeline fails to load, and only rewrites storage when new IDs are found.
-- **Archive import** skips reposts (they need "Undo repost", not Delete) and numeric IDs that lost precision, and reports both.
-- Deep Clean resets counters at start; a crash during deletion no longer leaves "Deep Clean" stuck in the status; the confirm button no longer stays disabled on an early exit; Pause/Stop/Reset invalidate the running job immediately.
+## Usage
+
+1. On x.com, click the extension icon and press **Detect** to pick up your logged-in account.
+2. Choose a source:
+   - **Archive:** select your archive post files and press **Import archive**.
+   - **Scan account:** press **Scan Posts + Replies**. The popup closes and the scan runs in the tab.
+3. Press **Delete queued posts** and confirm.
+4. Use **Pause**, **Reset** or **Stop all** at any time.
+
+### Getting your archive
+
+Request your data from X under *Settings → Your account → Download an archive of your data*. When it arrives, unzip it and select the post files from its `data` folder (`tweets.js` and any `tweets-partN.js`).
+
+## How it works
+
+The popup opens one tab at your post's URL with a private job token. The content script in that tab (and only that tab) finds the post, opens its "…" menu, clicks **Delete**, confirms, waits for X to remove the post from the page, then moves to the next one in the queue. A post counts as deleted when X removes it, and otherwise as failed. Reposts are skipped because they need "Undo repost", not Delete.
+
+## Limitations
+
+- **Deletion is permanent.** Deleted posts can't be restored.
+- Live scanning only reaches what X currently shows in your profile timelines. Use an archive import for very old posts.
+- Large queues are slow, and X may rate-limit the account.
+- The extension drives X's web interface. If X changes its layout, deletion may break until the extension is updated.
+
+## Permissions
+
+| Permission | Why |
+|---|---|
+| `storage` | Keeps the queue and progress locally so a run survives page loads. |
+| `https://x.com/*`, `https://twitter.com/*` | Detect your account, scan your timelines and delete your posts. |
+
+No remote code and no network requests of its own.
+
+## Project layout
+
+```
+manifest.json     Extension manifest (MV3)
+content.js        Runs on x.com: account detection, scanning, deletion
+popup.html        Popup UI
+popup.js          Popup logic and queue/state management
+privacy-policy.html
+store_screenshots/
+CHANGELOG.md
+```
+
+## Disclaimer
+
+X Archive Cleaner is an independent project and is not affiliated with, endorsed by, or sponsored by X Corp. Use it only on your own account and in line with X's terms. You are responsible for what you delete.
