@@ -73,6 +73,10 @@ store_screenshots/
 CHANGELOG.md
 ```
 
+## Support
+
+If this saved you time, you can [support me on Ko-fi](https://ko-fi.com/bzrkherja). It is entirely optional and every feature works without it.
+
 ## Disclaimer
 
 X Archive Cleaner is an independent project and is not affiliated with, endorsed by, or sponsored by X Corp. Use it only on your own account and in line with X's terms. You are responsible for what you delete.

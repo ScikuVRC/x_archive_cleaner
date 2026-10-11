@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>X Archive Cleaner – Privacy Policy</title>
+<style>
+  body{font:16px/1.6 system-ui,Segoe UI,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#1a1d24}
+  h1{font-size:28px;margin-bottom:4px} h2{font-size:19px;margin-top:32px}
+  .meta{color:#666;margin-top:0}
+</style>
+</head>
+<body>
+<h1>X Archive Cleaner – Privacy Policy</h1>
+<p class="meta">Last updated: 11 October 2026</p>
+
+<p>X Archive Cleaner is a browser extension that deletes the user's own posts and replies on X (x.com). This policy explains what the extension handles and what it does with it.</p>
+
+<h2>Summary</h2>
+<p>X Archive Cleaner does not collect, transmit, sell or share personal data. It has no servers, accounts, analytics or advertising. Everything stays in your browser.</p>
+
+<h2>Data the extension handles</h2>
+<p>To do its job, the extension reads and stores the following <strong>locally on your device</strong>, using the browser's extension storage (<code>chrome.storage.local</code>):</p>
+<ul>
+  <li>Your X username and account ID, read from the x.com page while you are logged in, so the extension only acts on your own account.</li>
+  <li>The post IDs you import from your X data archive or that it finds by scanning your profile, which form the deletion queue.</li>
+  <li>Progress information, such as the position in the queue, counts of deleted, skipped and failed posts, and status messages.</li>
+</ul>
+<p>Archive files you choose are read in the extension popup to extract post IDs. They are not uploaded anywhere.</p>
+
+<h2>What the extension does not do</h2>
+<ul>
+  <li>It does not send any data to the developer or to any third party.</li>
+  <li>It does not use analytics, tracking, cookies for tracking, or advertising.</li>
+  <li>It does not read your passwords, direct messages, or any page other than x.com and twitter.com.</li>
+  <li>It does not load or run remotely hosted code.</li>
+</ul>
+
+<h2>Network activity</h2>
+<p>The extension makes no network requests of its own. The only activity is what happens on x.com when it navigates to your posts and uses X's normal Delete controls on your behalf, exactly as if you had done it by hand. That activity is between your browser and X and is governed by X's own privacy policy.</p>
+
+<h2>External links</h2>
+<p>The popup contains an optional link to the developer's Ko-fi page. It opens in a new tab only when you click it. The extension sends no data when you do, and Ko-fi's own privacy policy applies to that page.</p>
+
+<h2>Permissions</h2>
+<ul>
+  <li><strong>storage</strong>: keeps the queue and progress locally so a run can continue across page loads.</li>
+  <li><strong>Access to x.com and twitter.com</strong>: lets the extension detect your account, scan your timelines and delete your posts.</li>
+</ul>
+
+<h2>Retention and deletion</h2>
+<p>Stored data stays on your device until you press <strong>Reset</strong> in the extension, or remove the extension, which clears its storage. The developer has no copy of it and cannot access it.</p>
+
+<h2>Children</h2>
+<p>The extension is not directed at children and does not knowingly collect any information from anyone.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the updated version will be posted at this address with a new date.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy: <strong>[your contact email or GitHub issues link]</strong></p>
+
+<p class="meta">X Archive Cleaner is an independent project and is not affiliated with, endorsed by, or sponsored by X Corp.</p>
+</body>
+</html>
